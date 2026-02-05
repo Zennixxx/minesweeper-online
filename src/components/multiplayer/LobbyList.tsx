@@ -1,0 +1,211 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Lobby, LobbyStatus } from '../../multiplayerTypes';
+import { getLobbies, joinLobby, deleteLobby } from '../../multiplayerService';
+import { getOrCreatePlayerId } from '../../lib/appwrite';
+import { client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
+
+interface LobbyListProps {
+  onJoinLobby: (lobby: Lobby) => void;
+  onCreateLobby: () => void;
+  onRefresh?: () => void;
+}
+
+export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby }) => {
+  const [lobbies, setLobbies] = useState<Lobby[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [joiningLobbyId, setJoiningLobbyId] = useState<string | null>(null);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const playerId = getOrCreatePlayerId();
+
+  const fetchLobbies = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getLobbies();
+      setLobbies(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Помилка завантаження лобі');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLobbies();
+
+    // Subscribe to realtime updates
+    const unsubscribe = client.subscribe(
+      `databases.${DATABASE_ID}.collections.${LOBBIES_COLLECTION_ID}.documents`,
+      () => {
+        fetchLobbies();
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [fetchLobbies]);
+
+  const handleJoinClick = (lobbyId: string) => {
+    setJoiningLobbyId(lobbyId);
+    setPasswordInput('');
+    setPasswordError(null);
+  };
+
+  const handleJoinSubmit = async (lobby: Lobby) => {
+    try {
+      setPasswordError(null);
+      const updatedLobby = await joinLobby(lobby.$id!, passwordInput);
+      setJoiningLobbyId(null);
+      onJoinLobby(updatedLobby);
+    } catch (err: any) {
+      setPasswordError(err.message || 'Помилка приєднання');
+    }
+  };
+
+  const handleDeleteLobby = async (lobbyId: string) => {
+    try {
+      await deleteLobby(lobbyId);
+      fetchLobbies();
+    } catch (err: any) {
+      setError(err.message || 'Помилка видалення лобі');
+    }
+  };
+
+  const getStatusBadge = (status: LobbyStatus) => {
+    switch (status) {
+      case LobbyStatus.WAITING:
+        return <span className="badge badge-waiting">⏳ Очікує</span>;
+      case LobbyStatus.FULL:
+        return <span className="badge badge-full">✅ Готове</span>;
+      case LobbyStatus.IN_GAME:
+        return <span className="badge badge-playing">🎮 Грає</span>;
+      default:
+        return null;
+    }
+  };
+
+  const getDifficultyLabel = (difficulty: string) => {
+    switch (difficulty) {
+      case 'EASY': return '🟢 Легко';
+      case 'MEDIUM': return '🟡 Середньо';
+      case 'HARD': return '🔴 Складно';
+      default: return difficulty;
+    }
+  };
+
+  return (
+    <div className="lobby-list-container">
+      <div className="lobby-header">
+        <h2>🎮 Ігрові лобі</h2>
+        <div className="lobby-actions">
+          <button className="btn btn-refresh" onClick={fetchLobbies}>
+            🔄 Оновити
+          </button>
+          <button className="btn btn-create" onClick={onCreateLobby}>
+            ➕ Створити лобі
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
+
+      {loading ? (
+        <div className="loading">Завантаження...</div>
+      ) : lobbies.length === 0 ? (
+        <div className="empty-list">
+          <p>🏜️ Немає активних лобі</p>
+          <p>Створіть нове лобі, щоб почати гру!</p>
+        </div>
+      ) : (
+        <div className="lobby-grid">
+          {lobbies.map((lobby) => (
+            <div key={lobby.$id} className="lobby-card">
+              <div className="lobby-card-header">
+                <h3>{lobby.name}</h3>
+                {getStatusBadge(lobby.status)}
+              </div>
+              
+              <div className="lobby-card-info">
+                <div className="info-row">
+                  <span className="label">Хост:</span>
+                  <span className="value">{lobby.hostName}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Гість:</span>
+                  <span className="value">{lobby.guestName || '—'}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Складність:</span>
+                  <span className="value">{getDifficultyLabel(lobby.difficulty)}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">🔒</span>
+                  <span className="value">Захищено паролем</span>
+                </div>
+              </div>
+
+              {lobby.hostId === playerId ? (
+                <div className="lobby-card-actions">
+                  <button 
+                    className="btn btn-danger"
+                    onClick={() => handleDeleteLobby(lobby.$id!)}
+                  >
+                    🗑️ Видалити
+                  </button>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => onJoinLobby(lobby)}
+                  >
+                    📥 Увійти
+                  </button>
+                </div>
+              ) : joiningLobbyId === lobby.$id ? (
+                <div className="password-form">
+                  <input
+                    type="password"
+                    placeholder="Введіть пароль"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    autoFocus
+                  />
+                  {passwordError && (
+                    <div className="password-error">{passwordError}</div>
+                  )}
+                  <div className="password-actions">
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={() => setJoiningLobbyId(null)}
+                    >
+                      Скасувати
+                    </button>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={() => handleJoinSubmit(lobby)}
+                      disabled={!passwordInput}
+                    >
+                      Приєднатися
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="lobby-card-actions">
+                  {lobby.status === LobbyStatus.WAITING && (
+                    <button 
+                      className="btn btn-primary"
+                      onClick={() => handleJoinClick(lobby.$id!)}
+                    >
+                      🚪 Приєднатися
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
