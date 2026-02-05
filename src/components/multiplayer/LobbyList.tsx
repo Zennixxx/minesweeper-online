@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus } from '../../multiplayerTypes';
+import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus, deserializeLobbyPlayers } from '../../multiplayerTypes';
 import { getLobbies, joinLobby, deleteLobby, getGame } from '../../multiplayerService';
 import { getOrCreatePlayerId } from '../../lib/appwrite';
 import { client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
@@ -164,8 +164,10 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                   <span className="value">{lobby.hostName}</span>
                 </div>
                 <div className="info-row">
-                  <span className="label">Гість:</span>
-                  <span className="value">{lobby.guestName || '—'}</span>
+                  <span className="label">Гравці:</span>
+                  <span className="value">
+                    {deserializeLobbyPlayers(lobby.players).length}/{lobby.maxPlayers || 2}
+                  </span>
                 </div>
                 <div className="info-row">
                   <span className="label">Складність:</span>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MultiplayerGameState, MultiplayerGameStatus, deserializeBoard, deserializeConfig } from '../../multiplayerTypes';
+import { MultiplayerGameState, MultiplayerGameStatus, deserializeBoard, deserializeConfig, deserializeGamePlayers } from '../../multiplayerTypes';
 import { getGame, makeMove, leaveGame } from '../../multiplayerService';
 import { getOrCreatePlayerId, client, DATABASE_ID, GAMES_COLLECTION_ID } from '../../lib/appwrite';
 import { Cell, CellState } from '../../types';
@@ -149,11 +149,13 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
   const getWinnerMessage = () => {
     if (game.status !== MultiplayerGameStatus.FINISHED) return null;
     
+    const gamePlayers = deserializeGamePlayers(game.players);
+    
     if (game.winnerId === 'draw') {
       return '🤝 Нічия!';
     } else if (isSpectator) {
-      const winnerName = game.winnerId === game.hostId ? game.hostName : game.guestName;
-      return `🏆 Переможець: ${winnerName}`;
+      const winner = gamePlayers.find(p => p.id === game.winnerId);
+      return `🏆 Переможець: ${winner?.name || 'Невідомий'}`;
     } else if (game.winnerId === playerId) {
       return '🏆 Ви перемогли!';
     } else {
@@ -161,18 +163,11 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
     }
   };
 
-  const getPlayerInfo = (isHostPlayer: boolean) => {
-    const name = isHostPlayer ? game.hostName : game.guestName;
-    const score = isHostPlayer ? game.hostScore : game.guestScore;
-    const id = isHostPlayer ? game.hostId : game.guestId;
-    const isCurrent = game.currentTurn === id;
-    const isMe = id === playerId;
-    
-    return { name, score, isCurrent, isMe };
-  };
-
-  const hostInfo = getPlayerInfo(true);
-  const guestInfo = getPlayerInfo(false);
+  // Get players from game state
+  const gamePlayers = deserializeGamePlayers(game.players);
+  
+  // Find current player name for turn messages
+  const currentPlayerName = gamePlayers.find(p => p.id === game.currentTurn)?.name || game.hostName;
 
   return (
     <div className="multiplayer-game-container">
@@ -183,45 +178,34 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
         )}
       </div>
 
-      <div className="players-score-panel">
-        <div className={`player-score-card ${hostInfo.isCurrent ? 'active' : ''} ${hostInfo.isMe ? 'me' : ''}`}>
-          <div className="player-avatar">👑</div>
-          <div className="player-details">
-            <div className="player-name-score">
-              {hostInfo.name}
-              {hostInfo.isMe && <span className="me-badge">(Ви)</span>}
+      <div className="players-score-panel multi-player">
+        {gamePlayers.map((player, index) => (
+          <React.Fragment key={player.id}>
+            {index > 0 && <div className="vs-badge">VS</div>}
+            <div className={`player-score-card ${game.currentTurn === player.id ? 'active' : ''} ${player.id === playerId ? 'me' : ''}`}>
+              <div className="player-avatar">{index === 0 ? '👑' : '🎮'}</div>
+              <div className="player-details">
+                <div className="player-name-score">
+                  {player.name}
+                  {player.id === playerId && <span className="me-badge">(Ви)</span>}
+                </div>
+                <div className="score">Очки: <strong>{player.score}</strong></div>
+              </div>
+              {game.currentTurn === player.id && game.status === MultiplayerGameStatus.PLAYING && (
+                <div className="turn-indicator">🎯 Хід</div>
+              )}
             </div>
-            <div className="score">Очки: <strong>{hostInfo.score}</strong></div>
-          </div>
-          {hostInfo.isCurrent && game.status === MultiplayerGameStatus.PLAYING && (
-            <div className="turn-indicator">🎯 Хід</div>
-          )}
-        </div>
-
-        <div className="vs-badge">VS</div>
-
-        <div className={`player-score-card ${guestInfo.isCurrent ? 'active' : ''} ${guestInfo.isMe ? 'me' : ''}`}>
-          <div className="player-avatar">🎮</div>
-          <div className="player-details">
-            <div className="player-name-score">
-              {guestInfo.name}
-              {guestInfo.isMe && <span className="me-badge">(Ви)</span>}
-            </div>
-            <div className="score">Очки: <strong>{guestInfo.score}</strong></div>
-          </div>
-          {guestInfo.isCurrent && game.status === MultiplayerGameStatus.PLAYING && (
-            <div className="turn-indicator">🎯 Хід</div>
-          )}
-        </div>
+          </React.Fragment>
+        ))}
       </div>
 
       {game.status === MultiplayerGameStatus.PLAYING && (
         <div className={`turn-message ${isSpectator ? 'spectator' : isMyTurn ? 'your-turn' : 'opponent-turn'}`}>
           {isSpectator 
-            ? `🎯 Зараз ходить: ${game.currentTurn === game.hostId ? game.hostName : game.guestName}`
+            ? `🎯 Зараз ходить: ${currentPlayerName}`
             : isMyTurn 
               ? '🎯 Ваш хід! Оберіть клітинку' 
-              : '⏳ Хід суперника...'}
+              : `⏳ Хід гравця ${currentPlayerName}...`}
         </div>
       )}
 
@@ -238,7 +222,12 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
         <div className={`game-over-message ${isSpectator ? 'spectator-end' : game.winnerId === playerId ? 'victory' : game.winnerId === 'draw' ? 'draw' : 'defeat'}`}>
           {getWinnerMessage()}
           <div className="final-scores">
-            Фінальний рахунок: {game.hostName} {game.hostScore} — {game.guestScore} {game.guestName}
+            Фінальний рахунок: {gamePlayers.map((p, i) => (
+              <span key={p.id}>
+                {i > 0 && ' — '}
+                {p.name}: {p.score}
+              </span>
+            ))}
           </div>
           {isSpectator && (
             <div className="spectator-end-hint">

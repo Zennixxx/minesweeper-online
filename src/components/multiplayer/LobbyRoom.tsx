@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lobby, LobbyStatus, MultiplayerGameState } from '../../multiplayerTypes';
+import { Lobby, LobbyStatus, MultiplayerGameState, deserializeLobbyPlayers } from '../../multiplayerTypes';
 import { getLobby, leaveLobby, startGame, getGame } from '../../multiplayerService';
 import { getOrCreatePlayerId, client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
 
@@ -93,6 +93,10 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
     }
   };
 
+  const players = deserializeLobbyPlayers(lobby.players);
+  const maxPlayers = lobby.maxPlayers || 2;
+  const emptySlots = maxPlayers - players.length;
+
   return (
     <div className="lobby-room-container">
       <div className="lobby-room-card">
@@ -102,36 +106,36 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
         </div>
 
         <div className="players-section">
-          <h3>Гравці</h3>
-          <div className="players-grid">
-            <div className={`player-card ${isHost ? 'you' : ''}`}>
-              <div className="player-icon">👑</div>
-              <div className="player-name">
-                {lobby.hostName}
-                {isHost && <span className="you-badge">(Ви)</span>}
+          <h3>Гравці ({players.length}/{maxPlayers})</h3>
+          <div className="players-grid multi-player">
+            {players.map((player, index) => (
+              <div key={player.id} className={`player-card ${player.id === playerId ? 'you' : ''}`}>
+                <div className="player-icon">{index === 0 ? '👑' : '🎮'}</div>
+                <div className="player-name">
+                  {player.name}
+                  {player.id === playerId && <span className="you-badge">(Ви)</span>}
+                </div>
+                <div className="player-role">{index === 0 ? 'Хост' : `Гравець ${index + 1}`}</div>
               </div>
-              <div className="player-role">Хост</div>
-            </div>
-
-            <div className={`player-card ${!isHost && lobby.guestId === playerId ? 'you' : ''} ${!lobby.guestId ? 'empty' : ''}`}>
-              <div className="player-icon">{lobby.guestId ? '🎮' : '❓'}</div>
-              <div className="player-name">
-                {lobby.guestName || 'Очікування гравця...'}
-                {!isHost && lobby.guestId === playerId && <span className="you-badge">(Ви)</span>}
+            ))}
+            {Array.from({ length: emptySlots }, (_, i) => (
+              <div key={`empty-${i}`} className="player-card empty">
+                <div className="player-icon">❓</div>
+                <div className="player-name">Очікування гравця...</div>
+                <div className="player-role">Слот {players.length + i + 1}</div>
               </div>
-              <div className="player-role">Гість</div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {!lobby.guestId && (
+        {emptySlots > 0 && (
           <div className="waiting-message">
             <div className="spinner"></div>
-            <p>Очікуємо другого гравця...</p>
+            <p>Очікуємо {emptySlots === 1 ? 'ще одного гравця' : `ще ${emptySlots} гравців`}...</p>
             <p className="hint">
               {lobby.password 
-                ? 'Поділіться назвою лобі та паролем з другом!'
-                : 'Поділіться назвою лобі з другом!'}
+                ? 'Поділіться назвою лобі та паролем з друзями!'
+                : 'Поділіться назвою лобі з друзями!'}
             </p>
           </div>
         )}
@@ -147,7 +151,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
             {isHost ? '🗑️ Видалити лобі' : '🚪 Вийти'}
           </button>
 
-          {isHost && lobby.guestId && (
+          {isHost && emptySlots === 0 && (
             <button 
               className="btn btn-success btn-start"
               onClick={handleStartGame}

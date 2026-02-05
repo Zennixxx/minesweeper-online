@@ -2,21 +2,27 @@ import { Cell, CellState, GameConfig, DifficultyLevel } from './types';
 
 // Multiplayer Game Status
 export enum MultiplayerGameStatus {
-  WAITING = 'waiting',      // Ожидание второго игрока
-  PLAYING = 'playing',      // Игра идёт
-  FINISHED = 'finished'     // Игра завершена
+  WAITING = 'waiting',      // Очікування гравців
+  PLAYING = 'playing',      // Гра йде
+  FINISHED = 'finished'     // Гра завершена
 }
 
 // Lobby Status
 export enum LobbyStatus {
-  WAITING = 'waiting',      // Ожидание игрока
-  FULL = 'full',            // Лобби заполнено
-  IN_GAME = 'in_game',      // Игра началась
-  FINISHED = 'finished'     // Игра завершена
+  WAITING = 'waiting',      // Очікування гравців
+  FULL = 'full',            // Лобі заповнене
+  IN_GAME = 'in_game',      // Гра почалась
+  FINISHED = 'finished'     // Гра завершена
 }
 
-// Player in game
-export interface Player {
+// Player in lobby
+export interface LobbyPlayer {
+  id: string;
+  name: string;
+}
+
+// Player in game (with score)
+export interface GamePlayer {
   id: string;
   name: string;
   score: number;
@@ -29,8 +35,10 @@ export interface Lobby {
   password: string;
   hostId: string;
   hostName: string;
-  guestId: string | null;
-  guestName: string | null;
+  maxPlayers: number;        // 2, 3, 4, etc.
+  players: string;           // JSON stringified LobbyPlayer[]
+  guestId: string | null;    // Deprecated, for backwards compatibility
+  guestName: string | null;  // Deprecated, for backwards compatibility
   status: LobbyStatus;
   difficulty: DifficultyLevel;
   createdAt: string;
@@ -43,6 +51,9 @@ export interface MultiplayerGameState {
   lobbyId: string;
   board: string; // JSON stringified Cell[][]
   config: string; // JSON stringified GameConfig
+  players: string; // JSON stringified GamePlayer[]
+  turnOrder: string; // JSON stringified string[] (player IDs in order)
+  currentTurnIndex: number; // Index in turnOrder
   hostId: string;
   hostName: string;
   hostScore: number;
@@ -57,6 +68,38 @@ export interface MultiplayerGameState {
   lastMoveBy: string | null;
   lastMoveCell: string | null; // "row-col"
 }
+
+// Serialize/deserialize players
+export const serializePlayers = (players: LobbyPlayer[] | GamePlayer[]): string => {
+  return JSON.stringify(players);
+};
+
+export const deserializeLobbyPlayers = (playersStr: string): LobbyPlayer[] => {
+  if (!playersStr) return [];
+  try {
+    return JSON.parse(playersStr);
+  } catch {
+    return [];
+  }
+};
+
+export const deserializeGamePlayers = (playersStr: string): GamePlayer[] => {
+  if (!playersStr) return [];
+  try {
+    return JSON.parse(playersStr);
+  } catch {
+    return [];
+  }
+};
+
+export const deserializeTurnOrder = (turnOrderStr: string): string[] => {
+  if (!turnOrderStr) return [];
+  try {
+    return JSON.parse(turnOrderStr);
+  } catch {
+    return [];
+  }
+};
 
 // Serialize board for storage
 export const serializeBoard = (board: Cell[][]): string => {

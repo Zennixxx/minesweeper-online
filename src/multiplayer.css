@@ -453,6 +453,14 @@
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
 }
 
+.form-hint {
+  display: block;
+  color: #6c757d;
+  font-size: 0.85rem;
+  margin-top: 6px;
+  font-style: italic;
+}
+
 .form-actions {
   display: flex;
   gap: 15px;
@@ -506,6 +514,11 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+}
+
+.players-grid.multi-player {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 15px;
 }
 
 .player-card {
@@ -629,6 +642,15 @@
   flex-wrap: wrap;
 }
 
+.players-score-panel.multi-player {
+  gap: 10px;
+}
+
+.players-score-panel.multi-player .vs-badge {
+  padding: 5px 8px;
+  font-size: 0.8rem;
+}
+
 .player-score-card {
   display: flex;
   align-items: center;
@@ -639,6 +661,28 @@
   border: 3px solid #e9ecef;
   transition: all 0.3s;
   min-width: 200px;
+}
+
+.players-score-panel.multi-player .player-score-card {
+  padding: 10px 15px;
+  min-width: 150px;
+  gap: 10px;
+}
+
+.players-score-panel.multi-player .player-avatar {
+  font-size: 1.8rem;
+}
+
+.players-score-panel.multi-player .player-name-score {
+  font-size: 0.9rem;
+}
+
+.players-score-panel.multi-player .score {
+  font-size: 0.8rem;
+}
+
+.players-score-panel.multi-player .score strong {
+  font-size: 1rem;
 }
 
 .player-score-card.active {

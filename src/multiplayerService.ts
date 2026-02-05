@@ -14,7 +14,13 @@ import {
   MultiplayerGameState, 
   MultiplayerGameStatus,
   serializeBoard,
-  serializeConfig
+  serializeConfig,
+  LobbyPlayer,
+  GamePlayer,
+  serializePlayers,
+  deserializeLobbyPlayers,
+  deserializeGamePlayers,
+  deserializeTurnOrder
 } from './multiplayerTypes';
 import { DifficultyLevel, DIFFICULTY_PRESETS, CellState } from './types';
 import { createBoard, placeMines, calculateNeighborMines } from './gameUtils';
@@ -25,16 +31,21 @@ import { createBoard, placeMines, calculateNeighborMines } from './gameUtils';
 export const createLobby = async (
   name: string, 
   password: string, 
-  difficulty: DifficultyLevel
+  difficulty: DifficultyLevel,
+  maxPlayers: number = 2
 ): Promise<Lobby> => {
   const playerId = getOrCreatePlayerId();
   const playerName = getPlayerName();
+  
+  const players: LobbyPlayer[] = [{ id: playerId, name: playerName }];
   
   const lobbyData = {
     name,
     password,
     hostId: playerId,
     hostName: playerName,
+    maxPlayers,
+    players: serializePlayers(players),
     guestId: null,
     guestName: null,
     status: LobbyStatus.WAITING,
@@ -113,29 +124,45 @@ export const joinLobby = async (lobbyId: string, password: string): Promise<Lobb
     throw new Error('Неправильний пароль');
   }
 
-  // Check if lobby is available
-  if (lobby.status !== LobbyStatus.WAITING) {
+  const playerId = getOrCreatePlayerId();
+  const playerName = getPlayerName();
+  
+  // Parse current players
+  const players = deserializeLobbyPlayers(lobby.players);
+  const maxPlayers = lobby.maxPlayers || 2;
+
+  // Check if already in lobby
+  if (players.some(p => p.id === playerId)) {
+    throw new Error('Ви вже в цьому лобі');
+  }
+
+  // Check if lobby is full
+  if (players.length >= maxPlayers) {
     throw new Error('Лобі вже заповнене');
   }
 
-  const playerId = getOrCreatePlayerId();
-  const playerName = getPlayerName();
-
-  // Can't join your own lobby
-  if (lobby.hostId === playerId) {
-    throw new Error('Ви не можете приєднатися до власного лобі');
+  // Add player to array
+  players.push({ id: playerId, name: playerName });
+  
+  // Determine new status
+  const newStatus = players.length >= maxPlayers ? LobbyStatus.FULL : LobbyStatus.WAITING;
+  
+  // For backwards compatibility, also update guestId/guestName for 2-player lobbies
+  const updateData: any = {
+    players: serializePlayers(players),
+    status: newStatus
+  };
+  
+  if (maxPlayers === 2 && players.length === 2) {
+    updateData.guestId = playerId;
+    updateData.guestName = playerName;
   }
 
-  // Update lobby with guest info
   const response = await databases.updateDocument(
     DATABASE_ID,
     LOBBIES_COLLECTION_ID,
     lobbyId,
-    {
-      guestId: playerId,
-      guestName: playerName,
-      status: LobbyStatus.FULL
-    }
+    updateData
   );
 
   return response as unknown as Lobby;
@@ -149,17 +176,27 @@ export const leaveLobby = async (lobbyId: string): Promise<void> => {
   if (lobby.hostId === playerId) {
     // Host leaves - delete lobby
     await databases.deleteDocument(DATABASE_ID, LOBBIES_COLLECTION_ID, lobbyId);
-  } else if (lobby.guestId === playerId) {
-    // Guest leaves - update lobby
+  } else {
+    // Non-host leaves - remove from players array
+    const players = deserializeLobbyPlayers(lobby.players);
+    const filteredPlayers = players.filter(p => p.id !== playerId);
+    
+    const updateData: any = {
+      players: serializePlayers(filteredPlayers),
+      status: LobbyStatus.WAITING
+    };
+    
+    // For backwards compatibility
+    if (lobby.guestId === playerId) {
+      updateData.guestId = null;
+      updateData.guestName = null;
+    }
+    
     await databases.updateDocument(
       DATABASE_ID,
       LOBBIES_COLLECTION_ID,
       lobbyId,
-      {
-        guestId: null,
-        guestName: null,
-        status: LobbyStatus.WAITING
-      }
+      updateData
     );
   }
 };
@@ -188,15 +225,32 @@ export const startGame = async (lobbyId: string): Promise<MultiplayerGameState> 
   board = placeMines(board, config, randomRow, randomCol);
   board = calculateNeighborMines(board);
 
-  const gameData = {
+  // Get players from lobby
+  const lobbyPlayers = deserializeLobbyPlayers(lobby.players);
+  
+  // Create game players with scores
+  const gamePlayers: GamePlayer[] = lobbyPlayers.map(p => ({
+    id: p.id,
+    name: p.name,
+    score: 0
+  }));
+  
+  // Create turn order (host first, then randomize others)
+  const turnOrder = [lobby.hostId, ...lobbyPlayers.filter(p => p.id !== lobby.hostId).map(p => p.id)];
+
+  const gameData: any = {
     lobbyId,
     board: serializeBoard(board),
     config: serializeConfig(config),
+    players: serializePlayers(gamePlayers),
+    turnOrder: JSON.stringify(turnOrder),
+    currentTurnIndex: 0,
+    // Backwards compatibility fields
     hostId: lobby.hostId,
     hostName: lobby.hostName,
     hostScore: 0,
-    guestId: lobby.guestId!,
-    guestName: lobby.guestName!,
+    guestId: lobbyPlayers.length > 1 ? lobbyPlayers[1].id : '',
+    guestName: lobbyPlayers.length > 1 ? lobbyPlayers[1].name : '',
     guestScore: 0,
     currentTurn: lobby.hostId, // Host goes first
     status: MultiplayerGameStatus.PLAYING,
@@ -258,8 +312,11 @@ export const makeMove = async (
     throw new Error('Гра вже завершена');
   }
 
-  // Parse board
+  // Parse board and players
   const board = JSON.parse(game.board);
+  const gamePlayers = deserializeGamePlayers(game.players);
+  const turnOrder = deserializeTurnOrder(game.turnOrder);
+  let currentTurnIndex = game.currentTurnIndex || 0;
   const cell = board[row][col];
 
   // Check if cell is already revealed
@@ -270,23 +327,29 @@ export const makeMove = async (
   // Reveal the cell
   cell.state = CellState.REVEALED;
 
-  let newHostScore = game.hostScore;
-  let newGuestScore = game.guestScore;
-  let nextTurn = game.currentTurn;
   let newMinesRevealed = game.minesRevealed;
+  let nextTurn = game.currentTurn;
+  let nextTurnIndex = currentTurnIndex;
+
+  // Find current player in players array
+  const currentPlayerIndex = gamePlayers.findIndex(p => p.id === playerId);
 
   if (cell.isMine) {
-    // Hit a mine - turn passes to opponent
+    // Hit a mine - turn passes to next player
     newMinesRevealed++;
-    nextTurn = playerId === game.hostId ? game.guestId : game.hostId;
+    if (turnOrder.length > 0) {
+      nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+      nextTurn = turnOrder[nextTurnIndex];
+    } else {
+      // Fallback for old format
+      nextTurn = playerId === game.hostId ? game.guestId : game.hostId;
+    }
   } else {
     // Safe cell - add points
     const points = cell.neighborMines === 0 ? 1 : cell.neighborMines;
     
-    if (playerId === game.hostId) {
-      newHostScore += points;
-    } else {
-      newGuestScore += points;
+    if (currentPlayerIndex >= 0) {
+      gamePlayers[currentPlayerIndex].score += points;
     }
 
     // If empty cell, reveal neighbors (and count all revealed)
@@ -297,10 +360,8 @@ export const makeMove = async (
         return sum + (revealedCell.neighborMines === 0 ? 1 : revealedCell.neighborMines);
       }, 0);
       
-      if (playerId === game.hostId) {
-        newHostScore += additionalPoints;
-      } else {
-        newGuestScore += additionalPoints;
+      if (currentPlayerIndex >= 0) {
+        gamePlayers[currentPlayerIndex].score += additionalPoints;
       }
     }
     
@@ -315,14 +376,35 @@ export const makeMove = async (
 
   if (gameOver) {
     status = MultiplayerGameStatus.FINISHED;
-    if (newHostScore > newGuestScore) {
-      winnerId = game.hostId;
-    } else if (newGuestScore > newHostScore) {
-      winnerId = game.guestId;
+    
+    // Find winner (player with highest score)
+    if (gamePlayers.length > 0) {
+      const maxScore = Math.max(...gamePlayers.map(p => p.score));
+      const winners = gamePlayers.filter(p => p.score === maxScore);
+      
+      if (winners.length === 1) {
+        winnerId = winners[0].id;
+      } else {
+        winnerId = 'draw';
+      }
     } else {
-      winnerId = 'draw';
+      // Fallback for old format
+      const hostScore = gamePlayers.find(p => p.id === game.hostId)?.score || game.hostScore;
+      const guestScore = gamePlayers.find(p => p.id === game.guestId)?.score || game.guestScore;
+      
+      if (hostScore > guestScore) {
+        winnerId = game.hostId;
+      } else if (guestScore > hostScore) {
+        winnerId = game.guestId;
+      } else {
+        winnerId = 'draw';
+      }
     }
   }
+
+  // Update backwards compatibility scores
+  const hostScore = gamePlayers.find(p => p.id === game.hostId)?.score || 0;
+  const guestScore = gamePlayers.find(p => p.id === game.guestId)?.score || 0;
 
   // Update game
   const response = await databases.updateDocument(
@@ -331,8 +413,10 @@ export const makeMove = async (
     gameId,
     {
       board: JSON.stringify(board),
-      hostScore: newHostScore,
-      guestScore: newGuestScore,
+      players: serializePlayers(gamePlayers),
+      currentTurnIndex: nextTurnIndex,
+      hostScore,
+      guestScore,
       currentTurn: nextTurn,
       status,
       winnerId,

@@ -13,9 +13,26 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
   const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [maxPlayers, setMaxPlayers] = useState(2);
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // When maxPlayers > 2, enforce minimum MEDIUM difficulty
+  const handleMaxPlayersChange = (newMax: number) => {
+    setMaxPlayers(newMax);
+    if (newMax > 2 && difficulty === 'EASY') {
+      setDifficulty('MEDIUM');
+    }
+  };
+
+  const handleDifficultyChange = (newDifficulty: DifficultyLevel) => {
+    // Don't allow EASY if more than 2 players
+    if (maxPlayers > 2 && newDifficulty === 'EASY') {
+      return;
+    }
+    setDifficulty(newDifficulty);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +62,7 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
 
     try {
       setLoading(true);
-      const lobby = await createLobby(name.trim(), usePassword ? password : '', difficulty);
+      const lobby = await createLobby(name.trim(), usePassword ? password : '', difficulty, maxPlayers);
       onLobbyCreated(lobby);
     } catch (err: any) {
       setError(err.message || 'Помилка створення лобі');
@@ -71,6 +88,21 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
               maxLength={30}
               autoFocus
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="lobby-players">Кількість гравців</label>
+            <select
+              id="lobby-players"
+              value={maxPlayers}
+              onChange={(e) => handleMaxPlayersChange(Number(e.target.value))}
+            >
+              <option value={2}>👥 2 гравці</option>
+              <option value={3}>👥 3 гравці</option>
+              <option value={4}>👥 4 гравці</option>
+              <option value={5}>👥 5 гравців</option>
+              <option value={6}>👥 6 гравців</option>
+            </select>
           </div>
 
           <div className="form-group checkbox-group">
@@ -115,12 +147,17 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
             <select
               id="lobby-difficulty"
               value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as DifficultyLevel)}
+              onChange={(e) => handleDifficultyChange(e.target.value as DifficultyLevel)}
             >
-              <option value="EASY">🟢 Легко (9x9, 10 мін)</option>
+              <option value="EASY" disabled={maxPlayers > 2}>
+                🟢 Легко (9x9, 10 мін) {maxPlayers > 2 ? '— недоступно для 3+ гравців' : ''}
+              </option>
               <option value="MEDIUM">🟡 Середньо (16x16, 40 мін)</option>
               <option value="HARD">🔴 Складно (16x30, 99 мін)</option>
             </select>
+            {maxPlayers > 2 && (
+              <span className="form-hint">Для 3+ гравців мінімальна складність — Середньо</span>
+            )}
           </div>
 
           {error && <div className="error-message">{error}</div>}
