@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
-import { DifficultyLevel } from '../../types';
+import { DifficultyLevel, DIFFICULTY_PRESETS } from '../../types';
 import { createLobby } from '../../multiplayerService';
 import { Lobby } from '../../multiplayerTypes';
+
+const DIFFICULTY_EMOJI: Record<DifficultyLevel, string> = {
+  EASY: '🟢',
+  MEDIUM: '🟡',
+  HARD: '🔴'
+};
+
+const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
+  EASY: 'Легко',
+  MEDIUM: 'Середньо',
+  HARD: 'Складно'
+};
 
 interface CreateLobbyProps {
   onLobbyCreated: (lobby: Lobby) => void;
@@ -149,11 +161,16 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
               value={difficulty}
               onChange={(e) => handleDifficultyChange(e.target.value as DifficultyLevel)}
             >
-              <option value="EASY" disabled={maxPlayers > 2}>
-                🟢 Легко (9x9, 10 мін) {maxPlayers > 2 ? '— недоступно для 3+ гравців' : ''}
-              </option>
-              <option value="MEDIUM">🟡 Середньо (16x16, 40 мін)</option>
-              <option value="HARD">🔴 Складно (16x30, 99 мін)</option>
+              {(Object.keys(DIFFICULTY_PRESETS) as DifficultyLevel[]).map((key) => {
+                const preset = DIFFICULTY_PRESETS[key];
+                const isDisabled = maxPlayers > 2 && key === 'EASY';
+                return (
+                  <option key={key} value={key} disabled={isDisabled}>
+                    {DIFFICULTY_EMOJI[key]} {DIFFICULTY_LABELS[key]} ({preset.rows}x{preset.cols}, {preset.mines} мін)
+                    {isDisabled ? ' — недоступно для 3+ гравців' : ''}
+                  </option>
+                );
+              })}
             </select>
             {maxPlayers > 2 && (
               <span className="form-hint">Для 3+ гравців мінімальна складність — Середньо</span>

@@ -33,7 +33,7 @@ export interface GameConfig {
 // Game difficulty presets
 export const DIFFICULTY_PRESETS = {
   EASY: { rows: 9, cols: 9, mines: 10 },
-  MEDIUM: { rows: 16, cols: 16, mines: 30 },
+  MEDIUM: { rows: 15, cols: 15, mines: 30 },
   HARD: { rows: 16, cols: 30, mines: 99 }
 } as const;
 

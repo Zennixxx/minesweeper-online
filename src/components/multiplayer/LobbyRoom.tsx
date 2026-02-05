@@ -2,6 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Lobby, LobbyStatus, MultiplayerGameState, deserializeLobbyPlayers } from '../../multiplayerTypes';
 import { getLobby, leaveLobby, startGame, getGame } from '../../multiplayerService';
 import { getOrCreatePlayerId, client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
+import { DIFFICULTY_PRESETS, DifficultyLevel } from '../../types';
+
+const DIFFICULTY_EMOJI: Record<DifficultyLevel, string> = {
+  EASY: '🟢',
+  MEDIUM: '🟡',
+  HARD: '🔴'
+};
+
+const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
+  EASY: 'Легко',
+  MEDIUM: 'Середньо',
+  HARD: 'Складно'
+};
 
 interface LobbyRoomProps {
   lobby: Lobby;
@@ -85,12 +98,12 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
   };
 
   const getDifficultyLabel = (difficulty: string) => {
-    switch (difficulty) {
-      case 'EASY': return '🟢 Легко (9x9, 10 мін)';
-      case 'MEDIUM': return '🟡 Середньо (16x16, 40 мін)';
-      case 'HARD': return '🔴 Складно (16x30, 99 мін)';
-      default: return difficulty;
+    const key = difficulty as DifficultyLevel;
+    if (key in DIFFICULTY_PRESETS) {
+      const preset = DIFFICULTY_PRESETS[key];
+      return `${DIFFICULTY_EMOJI[key]} ${DIFFICULTY_LABELS[key]} (${preset.rows}x${preset.cols}, ${preset.mines} мін)`;
     }
+    return difficulty;
   };
 
   const players = deserializeLobbyPlayers(lobby.players);

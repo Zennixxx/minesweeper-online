@@ -1,5 +1,11 @@
 import React from 'react';
-import { GameStatus, DifficultyLevel } from '../types';
+import { GameStatus, DifficultyLevel, DIFFICULTY_PRESETS } from '../types';
+
+const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
+  EASY: 'Легко',
+  MEDIUM: 'Середньо',
+  HARD: 'Складно'
+};
 
 interface GameStatusProps {
   status: GameStatus;
@@ -72,9 +78,14 @@ export const GameStatusPanel: React.FC<GameStatusProps> = ({
             value={currentDifficulty}
             onChange={(e) => onDifficultyChange(e.target.value as DifficultyLevel)}
           >
-            <option value="EASY">Легко (9x9, 10 мін)</option>
-            <option value="MEDIUM">Середньо (16x16, 40 мін)</option>
-            <option value="HARD">Складно (16x30, 99 мін)</option>
+            {(Object.keys(DIFFICULTY_PRESETS) as DifficultyLevel[]).map((key) => {
+              const preset = DIFFICULTY_PRESETS[key];
+              return (
+                <option key={key} value={key}>
+                  {DIFFICULTY_LABELS[key]} ({preset.rows}x{preset.cols}, {preset.mines} мін)
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
