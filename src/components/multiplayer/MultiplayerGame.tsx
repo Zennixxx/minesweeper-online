@@ -8,16 +8,18 @@ import { GameBoard } from '../GameBoard';
 interface MultiplayerGameProps {
   game: MultiplayerGameState;
   onGameEnd: () => void;
+  isSpectator?: boolean;
 }
 
-export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialGame, onGameEnd }) => {
+export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialGame, onGameEnd, isSpectator = false }) => {
   const [game, setGame] = useState<MultiplayerGameState>(initialGame);
   const [board, setBoard] = useState<Cell[][]>(() => deserializeBoard(initialGame.board));
+  const [localFlags, setLocalFlags] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [opponentLeft, setOpponentLeft] = useState(false);
   const playerId = getOrCreatePlayerId();
   
-  const isMyTurn = game.currentTurn === playerId;
+  const isMyTurn = !isSpectator && game.currentTurn === playerId;
   const config = deserializeConfig(game.config);
 
   const fetchGame = useCallback(async () => {
@@ -27,7 +29,8 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
       setBoard(deserializeBoard(updatedGame.board));
       
       // Check if opponent left (game finished and we're the winner but not by points)
-      if (updatedGame.status === MultiplayerGameStatus.FINISHED && 
+      // Only check for non-spectators
+      if (!isSpectator && updatedGame.status === MultiplayerGameStatus.FINISHED && 
           updatedGame.winnerId === playerId &&
           updatedGame.hostScore === game.hostScore && 
           updatedGame.guestScore === game.guestScore) {
@@ -41,7 +44,7 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
         setError(err.message || 'Помилка оновлення гри');
       }
     }
-  }, [game.$id, game.hostScore, game.guestScore, playerId]);
+  }, [game.$id, game.hostScore, game.guestScore, playerId, isSpectator]);
 
   useEffect(() => {
     // Subscribe to game updates
@@ -60,7 +63,7 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
   // Handle leaving game (forfeit)
   const handleLeaveGame = async () => {
     try {
-      if (game.status === MultiplayerGameStatus.PLAYING) {
+      if (!isSpectator && game.status === MultiplayerGameStatus.PLAYING) {
         await leaveGame(game.$id!);
       }
       onGameEnd();
@@ -70,6 +73,10 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
   };
 
   const handleCellClick = async (row: number, col: number) => {
+    if (isSpectator) {
+      return; // Spectators can't make moves
+    }
+
     if (!isMyTurn) {
       setError('Зараз не ваш хід!');
       setTimeout(() => setError(null), 2000);
@@ -85,6 +92,17 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
       return;
     }
 
+    // If cell has local flag, remove it first (don't make move)
+    const key = `${row}-${col}`;
+    if (localFlags.has(key)) {
+      setLocalFlags(prev => {
+        const newFlags = new Set(prev);
+        newFlags.delete(key);
+        return newFlags;
+      });
+      return;
+    }
+
     try {
       setError(null);
       const updatedGame = await makeMove(game.$id!, row, col);
@@ -95,15 +113,47 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
     }
   };
 
-  const handleCellRightClick = () => {
-    // В мультиплеєрі прапорці вимкнено, щоб не ускладнювати гру
+  const handleCellRightClick = (row: number, col: number) => {
+    if (isSpectator || game.status !== MultiplayerGameStatus.PLAYING) {
+      return;
+    }
+
+    const cell = board[row][col];
+    if (cell.state === CellState.REVEALED) {
+      return;
+    }
+
+    const key = `${row}-${col}`;
+    setLocalFlags(prev => {
+      const newFlags = new Set(prev);
+      if (newFlags.has(key)) {
+        newFlags.delete(key);
+      } else {
+        newFlags.add(key);
+      }
+      return newFlags;
+    });
   };
+
+  // Apply local flags to board for display
+  const boardWithFlags = board.map(row => 
+    row.map(cell => {
+      const key = `${cell.row}-${cell.col}`;
+      if (localFlags.has(key) && cell.state === CellState.HIDDEN) {
+        return { ...cell, state: CellState.FLAGGED };
+      }
+      return cell;
+    })
+  );
 
   const getWinnerMessage = () => {
     if (game.status !== MultiplayerGameStatus.FINISHED) return null;
     
     if (game.winnerId === 'draw') {
       return '🤝 Нічия!';
+    } else if (isSpectator) {
+      const winnerName = game.winnerId === game.hostId ? game.hostName : game.guestName;
+      return `🏆 Переможець: ${winnerName}`;
     } else if (game.winnerId === playerId) {
       return '🏆 Ви перемогли!';
     } else {
@@ -127,7 +177,10 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
   return (
     <div className="multiplayer-game-container">
       <div className="game-header-mp">
-        <h2>💣 Сапер - Онлайн битва</h2>
+        <h2>💣 Сапер - {isSpectator ? 'Режим глядача' : 'Онлайн битва'}</h2>
+        {isSpectator && (
+          <div className="spectator-badge">👁️ Ви спостерігаєте за грою</div>
+        )}
       </div>
 
       <div className="players-score-panel">
@@ -163,8 +216,12 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
       </div>
 
       {game.status === MultiplayerGameStatus.PLAYING && (
-        <div className={`turn-message ${isMyTurn ? 'your-turn' : 'opponent-turn'}`}>
-          {isMyTurn ? '🎯 Ваш хід! Оберіть клітинку' : '⏳ Хід суперника...'}
+        <div className={`turn-message ${isSpectator ? 'spectator' : isMyTurn ? 'your-turn' : 'opponent-turn'}`}>
+          {isSpectator 
+            ? `🎯 Зараз ходить: ${game.currentTurn === game.hostId ? game.hostName : game.guestName}`
+            : isMyTurn 
+              ? '🎯 Ваш хід! Оберіть клітинку' 
+              : '⏳ Хід суперника...'}
         </div>
       )}
 
@@ -178,19 +235,24 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
       )}
 
       {game.status === MultiplayerGameStatus.FINISHED && !opponentLeft && (
-        <div className={`game-over-message ${game.winnerId === playerId ? 'victory' : game.winnerId === 'draw' ? 'draw' : 'defeat'}`}>
+        <div className={`game-over-message ${isSpectator ? 'spectator-end' : game.winnerId === playerId ? 'victory' : game.winnerId === 'draw' ? 'draw' : 'defeat'}`}>
           {getWinnerMessage()}
           <div className="final-scores">
             Фінальний рахунок: {game.hostName} {game.hostScore} — {game.guestScore} {game.guestName}
           </div>
+          {isSpectator && (
+            <div className="spectator-end-hint">
+              Гра завершена. Натисніть кнопку нижче, щоб повернутися.
+            </div>
+          )}
         </div>
       )}
 
       {error && <div className="error-message">{error}</div>}
 
-      <div className={`game-board-wrapper ${!isMyTurn ? 'disabled' : ''}`}>
+      <div className={`game-board-wrapper ${isSpectator ? 'spectator-mode' : !isMyTurn ? 'disabled' : ''}`}>
         <GameBoard
-          board={board}
+          board={boardWithFlags}
           onCellLeftClick={handleCellClick}
           onCellRightClick={handleCellRightClick}
           gameEnded={game.status === MultiplayerGameStatus.FINISHED}
@@ -210,7 +272,7 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
 
       <div className="game-actions">
         <button className="btn btn-danger" onClick={handleLeaveGame}>
-          🚪 Вийти з гри
+          {isSpectator ? '🚪 Покинути перегляд' : '🚪 Вийти з гри'}
         </button>
       </div>
     </div>

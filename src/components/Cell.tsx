@@ -10,10 +10,10 @@ interface CellProps {
 
 export const Cell: React.FC<CellProps> = ({ cell, onLeftClick, onRightClick, gameEnded }) => {
   const handleClick = () => {
-    if (gameEnded || cell.state === CellState.FLAGGED) {
+    if (gameEnded) {
       return;
     }
-    if (cell.state === CellState.HIDDEN) {
+    if (cell.state === CellState.HIDDEN || cell.state === CellState.FLAGGED) {
       onLeftClick(cell.row, cell.col);
     }
   };

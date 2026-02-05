@@ -319,7 +319,7 @@ body {
 
 /* Revealed cell */
 .cell.revealed {
-  background: #f8f9fa;
+  background: #c5c5c5;
   box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
   cursor: default;
 }

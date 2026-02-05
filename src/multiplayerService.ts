@@ -59,13 +59,38 @@ export const getLobbies = async (): Promise<Lobby[]> => {
     DATABASE_ID,
     LOBBIES_COLLECTION_ID,
     [
-      Query.equal('status', [LobbyStatus.WAITING, LobbyStatus.FULL]),
+      Query.equal('status', [LobbyStatus.WAITING, LobbyStatus.FULL, LobbyStatus.IN_GAME]),
       Query.orderDesc('createdAt'),
       Query.limit(50)
     ]
   );
 
-  return response.documents as unknown as Lobby[];
+  // Filter out lobbies where the game has finished
+  const lobbies = response.documents as unknown as Lobby[];
+  const activeLobbies: Lobby[] = [];
+  
+  for (const lobby of lobbies) {
+    if (lobby.status === LobbyStatus.IN_GAME && lobby.gameId) {
+      try {
+        const game = await databases.getDocument(DATABASE_ID, GAMES_COLLECTION_ID, lobby.gameId) as unknown as MultiplayerGameState;
+        if (game.status === MultiplayerGameStatus.FINISHED) {
+          // Delete finished lobby
+          try {
+            await databases.deleteDocument(DATABASE_ID, LOBBIES_COLLECTION_ID, lobby.$id!);
+          } catch (e) {
+            // Ignore deletion errors
+          }
+          continue;
+        }
+      } catch (e) {
+        // Game not found, skip this lobby
+        continue;
+      }
+    }
+    activeLobbies.push(lobby);
+  }
+
+  return activeLobbies;
 };
 
 // Get lobby by ID
@@ -83,8 +108,8 @@ export const getLobby = async (lobbyId: string): Promise<Lobby> => {
 export const joinLobby = async (lobbyId: string, password: string): Promise<Lobby> => {
   const lobby = await getLobby(lobbyId);
   
-  // Check password
-  if (lobby.password !== password) {
+  // Check password only if lobby has one
+  if (lobby.password && lobby.password !== password) {
     throw new Error('Неправильний пароль');
   }
 
@@ -316,6 +341,15 @@ export const makeMove = async (
       lastMoveCell: `${row}-${col}`
     }
   );
+
+  // If game finished, delete the lobby
+  if (gameOver) {
+    try {
+      await databases.deleteDocument(DATABASE_ID, LOBBIES_COLLECTION_ID, game.lobbyId);
+    } catch (e) {
+      // Lobby might already be deleted
+    }
+  }
 
   return response as unknown as MultiplayerGameState;
 };

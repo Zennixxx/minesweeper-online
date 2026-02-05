@@ -6,7 +6,7 @@ import { LobbyRoom } from './LobbyRoom';
 import { MultiplayerGame } from './MultiplayerGame';
 import { Lobby, MultiplayerGameState } from '../../multiplayerTypes';
 
-type GameScreen = 'name' | 'lobby-list' | 'create-lobby' | 'lobby-room' | 'game';
+type GameScreen = 'name' | 'lobby-list' | 'create-lobby' | 'lobby-room' | 'game' | 'spectate';
 
 export const MultiplayerApp: React.FC = () => {
   const [screen, setScreen] = useState<GameScreen>('name');
@@ -47,6 +47,11 @@ export const MultiplayerApp: React.FC = () => {
   const handleGameStart = useCallback((game: MultiplayerGameState) => {
     setCurrentGame(game);
     setScreen('game');
+  }, []);
+
+  const handleSpectate = useCallback((game: MultiplayerGameState) => {
+    setCurrentGame(game);
+    setScreen('spectate');
   }, []);
 
   const handleGameEnd = useCallback(() => {
@@ -91,6 +96,7 @@ export const MultiplayerApp: React.FC = () => {
           <LobbyList 
             onJoinLobby={handleJoinLobby}
             onCreateLobby={handleCreateLobby}
+            onSpectate={handleSpectate}
           />
         </>
       )}
@@ -114,6 +120,14 @@ export const MultiplayerApp: React.FC = () => {
         <MultiplayerGame 
           game={currentGame}
           onGameEnd={handleGameEnd}
+        />
+      )}
+
+      {screen === 'spectate' && currentGame && (
+        <MultiplayerGame 
+          game={currentGame}
+          onGameEnd={handleGameEnd}
+          isSpectator={true}
         />
       )}
     </div>

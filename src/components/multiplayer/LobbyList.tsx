@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lobby, LobbyStatus } from '../../multiplayerTypes';
-import { getLobbies, joinLobby, deleteLobby } from '../../multiplayerService';
+import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus } from '../../multiplayerTypes';
+import { getLobbies, joinLobby, deleteLobby, getGame } from '../../multiplayerService';
 import { getOrCreatePlayerId } from '../../lib/appwrite';
 import { client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
 
 interface LobbyListProps {
   onJoinLobby: (lobby: Lobby) => void;
   onCreateLobby: () => void;
+  onSpectate?: (game: MultiplayerGameState) => void;
   onRefresh?: () => void;
 }
 
-export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby }) => {
+export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby, onSpectate }) => {
   const [lobbies, setLobbies] = useState<Lobby[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +49,39 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
     };
   }, [fetchLobbies]);
 
-  const handleJoinClick = (lobbyId: string) => {
-    setJoiningLobbyId(lobbyId);
-    setPasswordInput('');
-    setPasswordError(null);
+  const handleJoinClick = async (lobby: Lobby) => {
+    // If no password, join directly
+    if (!lobby.password) {
+      try {
+        setPasswordError(null);
+        const updatedLobby = await joinLobby(lobby.$id!, '');
+        onJoinLobby(updatedLobby);
+      } catch (err: any) {
+        setError(err.message || 'Помилка приєднання');
+      }
+    } else {
+      // Show password prompt
+      setJoiningLobbyId(lobby.$id!);
+      setPasswordInput('');
+      setPasswordError(null);
+    }
+  };
+
+  const handleSpectateClick = async (lobby: Lobby) => {
+    if (lobby.gameId && onSpectate) {
+      try {
+        const game = await getGame(lobby.gameId);
+        // Check if game is still in progress
+        if (game.status === MultiplayerGameStatus.FINISHED) {
+          setError('Гра вже завершена');
+          fetchLobbies(); // Refresh to update status
+          return;
+        }
+        onSpectate(game);
+      } catch (err: any) {
+        setError(err.message || 'Помилка підключення до гри');
+      }
+    }
   };
 
   const handleJoinSubmit = async (lobby: Lobby) => {
@@ -142,8 +172,8 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                   <span className="value">{getDifficultyLabel(lobby.difficulty)}</span>
                 </div>
                 <div className="info-row">
-                  <span className="label">🔒</span>
-                  <span className="value">Захищено паролем</span>
+                  <span className="label">{lobby.password ? '🔒' : '🔓'}</span>
+                  <span className="value">{lobby.password ? 'Захищено паролем' : 'Відкрите лобі'}</span>
                 </div>
               </div>
 
@@ -195,9 +225,17 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                   {lobby.status === LobbyStatus.WAITING && (
                     <button 
                       className="btn btn-primary"
-                      onClick={() => handleJoinClick(lobby.$id!)}
+                      onClick={() => handleJoinClick(lobby)}
                     >
                       🚪 Приєднатися
+                    </button>
+                  )}
+                  {lobby.status === LobbyStatus.IN_GAME && onSpectate && (
+                    <button 
+                      className="btn btn-spectate"
+                      onClick={() => handleSpectateClick(lobby)}
+                    >
+                      👁️ Спостерігати
                     </button>
                   )}
                 </div>

@@ -885,3 +885,88 @@
     justify-content: center;
   }
 }
+
+/* ==================== Checkbox for Password ==================== */
+.checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #495057;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #667eea;
+  cursor: pointer;
+}
+
+.checkbox-label span {
+  user-select: none;
+}
+
+/* ==================== Spectator Mode ==================== */
+.btn-spectate {
+  background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+  color: white;
+}
+
+.btn-spectate:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(23, 162, 184, 0.4);
+}
+
+.spectator-badge {
+  background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-top: 10px;
+  display: inline-block;
+  animation: spectatorPulse 2s ease-in-out infinite;
+}
+
+@keyframes spectatorPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(23, 162, 184, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(23, 162, 184, 0);
+  }
+}
+
+.game-board-wrapper.spectator-mode {
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+.turn-message.spectator {
+  background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+  color: white;
+}
+
+.game-over-message.spectator-end {
+  background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+  color: white;
+}
+
+.spectator-end-hint {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+/* Open/Locked lobby indicator */
+.info-row .label {
+  min-width: 24px;
+  text-align: center;
+}

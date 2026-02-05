@@ -10,6 +10,7 @@ interface CreateLobbyProps {
 
 export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCancel }) => {
   const [name, setName] = useState('');
+  const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
@@ -25,24 +26,26 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
       return;
     }
 
-    if (!password) {
-      setError('Введіть пароль');
-      return;
-    }
+    if (usePassword) {
+      if (!password) {
+        setError('Введіть пароль');
+        return;
+      }
 
-    if (password !== confirmPassword) {
-      setError('Паролі не співпадають');
-      return;
-    }
+      if (password !== confirmPassword) {
+        setError('Паролі не співпадають');
+        return;
+      }
 
-    if (password.length < 4) {
-      setError('Пароль має бути не менше 4 символів');
-      return;
+      if (password.length < 4) {
+        setError('Пароль має бути не менше 4 символів');
+        return;
+      }
     }
 
     try {
       setLoading(true);
-      const lobby = await createLobby(name.trim(), password, difficulty);
+      const lobby = await createLobby(name.trim(), usePassword ? password : '', difficulty);
       onLobbyCreated(lobby);
     } catch (err: any) {
       setError(err.message || 'Помилка створення лобі');
@@ -70,27 +73,42 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="lobby-password">Пароль</label>
-            <input
-              id="lobby-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Введіть пароль"
-            />
+          <div className="form-group checkbox-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={usePassword}
+                onChange={(e) => setUsePassword(e.target.checked)}
+              />
+              <span>🔒 Захистити паролем</span>
+            </label>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="lobby-confirm-password">Підтвердіть пароль</label>
-            <input
-              id="lobby-confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Підтвердіть пароль"
-            />
-          </div>
+          {usePassword && (
+            <>
+              <div className="form-group">
+                <label htmlFor="lobby-password">Пароль</label>
+                <input
+                  id="lobby-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Введіть пароль"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="lobby-confirm-password">Підтвердіть пароль</label>
+                <input
+                  id="lobby-confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Підтвердіть пароль"
+                />
+              </div>
+            </>
+          )}
 
           <div className="form-group">
             <label htmlFor="lobby-difficulty">Складність</label>

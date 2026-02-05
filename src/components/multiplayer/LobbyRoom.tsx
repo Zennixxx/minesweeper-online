@@ -128,7 +128,11 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
           <div className="waiting-message">
             <div className="spinner"></div>
             <p>Очікуємо другого гравця...</p>
-            <p className="hint">Поділіться назвою лобі та паролем з другом!</p>
+            <p className="hint">
+              {lobby.password 
+                ? 'Поділіться назвою лобі та паролем з другом!'
+                : 'Поділіться назвою лобі з другом!'}
+            </p>
           </div>
         )}
 
