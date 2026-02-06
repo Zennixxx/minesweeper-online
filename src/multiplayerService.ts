@@ -20,7 +20,9 @@ import {
   serializePlayers,
   deserializeLobbyPlayers,
   deserializeGamePlayers,
-  deserializeTurnOrder
+  deserializeTurnOrder,
+  serializeSpectators,
+  deserializeSpectators
 } from './multiplayerTypes';
 import { DifficultyLevel, DIFFICULTY_PRESETS, CellState } from './types';
 import { createBoard, placeMines, calculateNeighborMines } from './gameUtils';
@@ -546,5 +548,64 @@ export const deleteGameAndLobby = async (gameId: string, lobbyId: string): Promi
     await databases.deleteDocument(DATABASE_ID, LOBBIES_COLLECTION_ID, lobbyId);
   } catch (e) {
     // Lobby might already be deleted
+  }
+};
+
+// ==================== SPECTATOR FUNCTIONS ====================
+
+// Join a game as spectator
+export const joinAsSpectator = async (gameId: string): Promise<MultiplayerGameState> => {
+  const game = await getGame(gameId);
+  const playerId = getOrCreatePlayerId();
+  
+  // Get current spectators
+  const spectators = deserializeSpectators(game.spectators);
+  
+  // Check if already spectating
+  if (spectators.includes(playerId)) {
+    return game;
+  }
+  
+  // Add to spectators
+  spectators.push(playerId);
+  
+  // Update game
+  const response = await databases.updateDocument(
+    DATABASE_ID,
+    GAMES_COLLECTION_ID,
+    gameId,
+    {
+      spectators: serializeSpectators(spectators)
+    }
+  );
+  
+  return response as unknown as MultiplayerGameState;
+};
+
+// Leave game as spectator
+export const leaveAsSpectator = async (gameId: string): Promise<void> => {
+  try {
+    const game = await getGame(gameId);
+    const playerId = getOrCreatePlayerId();
+    
+    // Get current spectators
+    const spectators = deserializeSpectators(game.spectators);
+    
+    // Remove from spectators
+    const newSpectators = spectators.filter(id => id !== playerId);
+    
+    // Only update if there was a change
+    if (newSpectators.length !== spectators.length) {
+      await databases.updateDocument(
+        DATABASE_ID,
+        GAMES_COLLECTION_ID,
+        gameId,
+        {
+          spectators: serializeSpectators(newSpectators)
+        }
+      );
+    }
+  } catch (e) {
+    // Game might be deleted or already finished - ignore
   }
 };

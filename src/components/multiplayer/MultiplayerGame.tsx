@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MultiplayerGameState, MultiplayerGameStatus, deserializeBoard, deserializeConfig, deserializeGamePlayers } from '../../multiplayerTypes';
-import { getGame, makeMove, leaveGame } from '../../multiplayerService';
+import { MultiplayerGameState, MultiplayerGameStatus, deserializeBoard, deserializeConfig, deserializeGamePlayers, deserializeSpectators } from '../../multiplayerTypes';
+import { getGame, makeMove, leaveGame, leaveAsSpectator } from '../../multiplayerService';
 import { getOrCreatePlayerId, client, DATABASE_ID, GAMES_COLLECTION_ID } from '../../lib/appwrite';
 import { Cell, CellState } from '../../types';
 import { GameBoard } from '../GameBoard';
@@ -21,6 +21,7 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
   
   const isMyTurn = !isSpectator && game.currentTurn === playerId;
   const config = deserializeConfig(game.config);
+  const spectatorCount = deserializeSpectators(game.spectators).length;
 
   const fetchGame = useCallback(async () => {
     try {
@@ -63,7 +64,9 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
   // Handle leaving game (forfeit)
   const handleLeaveGame = async () => {
     try {
-      if (!isSpectator && game.status === MultiplayerGameStatus.PLAYING) {
+      if (isSpectator) {
+        await leaveAsSpectator(game.$id!);
+      } else if (game.status === MultiplayerGameStatus.PLAYING) {
         await leaveGame(game.$id!);
       }
       onGameEnd();
@@ -175,6 +178,9 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
         <h2>💣 Сапер - {isSpectator ? 'Режим глядача' : 'Онлайн битва'}</h2>
         {isSpectator && (
           <div className="spectator-badge">👁️ Ви спостерігаєте за грою</div>
+        )}
+        {spectatorCount > 0 && (
+          <div className="spectator-count">👁️ Глядачів: {spectatorCount}</div>
         )}
       </div>
 

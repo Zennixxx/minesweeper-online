@@ -67,6 +67,7 @@ export interface MultiplayerGameState {
   totalMines: number;
   lastMoveBy: string | null;
   lastMoveCell: string | null; // "row-col"
+  spectators?: string; // JSON stringified string[] (spectator IDs)
 }
 
 // Serialize/deserialize players
@@ -96,6 +97,20 @@ export const deserializeTurnOrder = (turnOrderStr: string): string[] => {
   if (!turnOrderStr) return [];
   try {
     return JSON.parse(turnOrderStr);
+  } catch {
+    return [];
+  }
+};
+
+// Serialize/deserialize spectators
+export const serializeSpectators = (spectators: string[]): string => {
+  return JSON.stringify(spectators);
+};
+
+export const deserializeSpectators = (spectatorsStr: string | undefined): string[] => {
+  if (!spectatorsStr) return [];
+  try {
+    return JSON.parse(spectatorsStr);
   } catch {
     return [];
   }

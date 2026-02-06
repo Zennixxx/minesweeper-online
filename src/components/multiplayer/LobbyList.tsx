@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus, deserializeLobbyPlayers } from '../../multiplayerTypes';
-import { getLobbies, joinLobby, deleteLobby, getGame } from '../../multiplayerService';
+import { getLobbies, joinLobby, deleteLobby, getGame, joinAsSpectator } from '../../multiplayerService';
 import { getOrCreatePlayerId } from '../../lib/appwrite';
 import { client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
 
@@ -77,7 +77,9 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
           fetchLobbies(); // Refresh to update status
           return;
         }
-        onSpectate(game);
+        // Join as spectator to track spectator count
+        const updatedGame = await joinAsSpectator(lobby.gameId);
+        onSpectate(updatedGame);
       } catch (err: any) {
         setError(err.message || 'Помилка підключення до гри');
       }

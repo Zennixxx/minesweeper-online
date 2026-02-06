@@ -1106,6 +1106,30 @@
   animation: spectatorGlow 2s ease-in-out infinite;
 }
 
+.spectator-count {
+  background: rgba(150, 180, 255, 0.1);
+  border: 1px solid rgba(150, 180, 255, 0.25);
+  color: rgba(150, 180, 255, 0.85);
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-top: 8px;
+  display: inline-block;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: spectatorPulse 3s ease-in-out infinite;
+}
+
+@keyframes spectatorPulse {
+  0%, 100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @keyframes spectatorGlow {
   0%, 100% {
     box-shadow: 0 0 20px rgba(150, 180, 255, 0.1);

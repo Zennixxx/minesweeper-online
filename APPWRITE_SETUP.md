@@ -64,6 +64,7 @@
 | totalMines | integer | - | Yes | - |
 | lastMoveBy | string | 100 | No | null |
 | lastMoveCell | string | 20 | No | null |
+| spectators | string | 10000 | No | null |
 
 ## Крок 4: Налаштуйте дозволи
 
