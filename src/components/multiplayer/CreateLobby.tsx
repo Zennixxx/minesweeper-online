@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DifficultyLevel, DIFFICULTY_PRESETS } from '../../types';
 import { createLobby } from '../../multiplayerService';
-import { Lobby } from '../../multiplayerTypes';
+import { Lobby, GameMode, GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS } from '../../multiplayerTypes';
 
 const DIFFICULTY_EMOJI: Record<DifficultyLevel, string> = {
   EASY: '🟢',
@@ -27,8 +27,17 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
   const [confirmPassword, setConfirmPassword] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(2);
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
+  const [gameMode, setGameMode] = useState<GameMode>(GameMode.CLASSIC);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // When game mode changes to RACE, lock to 2 players
+  const handleGameModeChange = (mode: GameMode) => {
+    setGameMode(mode);
+    if (mode === GameMode.RACE) {
+      setMaxPlayers(2);
+    }
+  };
 
   // When maxPlayers > 2, enforce minimum MEDIUM difficulty
   const handleMaxPlayersChange = (newMax: number) => {
@@ -74,7 +83,7 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
 
     try {
       setLoading(true);
-      const lobby = await createLobby(name.trim(), usePassword ? password : '', difficulty, maxPlayers);
+      const lobby = await createLobby(name.trim(), usePassword ? password : '', difficulty, maxPlayers, gameMode);
       onLobbyCreated(lobby);
     } catch (err: any) {
       setError(err.message || 'Помилка створення лобі');
@@ -89,6 +98,23 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
         <h2>➕ Створити нове лобі</h2>
         
         <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Режим гри</label>
+            <div className="game-mode-selector">
+              {(Object.values(GameMode) as GameMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`game-mode-btn ${gameMode === mode ? 'active' : ''}`}
+                  onClick={() => handleGameModeChange(mode)}
+                >
+                  <div className="game-mode-label">{GAME_MODE_LABELS[mode]}</div>
+                  <div className="game-mode-desc">{GAME_MODE_DESCRIPTIONS[mode]}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="form-group">
             <label htmlFor="lobby-name">Назва лобі</label>
             <input
@@ -108,13 +134,17 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
               id="lobby-players"
               value={maxPlayers}
               onChange={(e) => handleMaxPlayersChange(Number(e.target.value))}
+              disabled={gameMode === GameMode.RACE}
             >
               <option value={2}>👥 2 гравці</option>
-              <option value={3}>👥 3 гравці</option>
-              <option value={4}>👥 4 гравці</option>
-              <option value={5}>👥 5 гравців</option>
-              <option value={6}>👥 6 гравців</option>
+              <option value={3} disabled={gameMode === GameMode.RACE}>👥 3 гравці</option>
+              <option value={4} disabled={gameMode === GameMode.RACE}>👥 4 гравці</option>
+              <option value={5} disabled={gameMode === GameMode.RACE}>👥 5 гравців</option>
+              <option value={6} disabled={gameMode === GameMode.RACE}>👥 6 гравців</option>
             </select>
+            {gameMode === GameMode.RACE && (
+              <span className="form-hint">Режим «На швидкість» доступний тільки для 2 гравців</span>
+            )}
           </div>
 
           <div className="form-group checkbox-group">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Minesweeper } from './components/Minesweeper';
 import { MultiplayerApp } from './components/multiplayer';
 import './index.css';
@@ -8,6 +8,11 @@ type GameMode = 'menu' | 'single' | 'multiplayer';
 
 function App() {
   const [gameMode, setGameMode] = useState<GameMode>('menu');
+  const [isInMultiplayerGame, setIsInMultiplayerGame] = useState(false);
+
+  const handleMultiplayerGameStateChange = useCallback((inGame: boolean) => {
+    setIsInMultiplayerGame(inGame);
+  }, []);
 
   if (gameMode === 'menu') {
     return (
@@ -56,13 +61,15 @@ function App() {
 
   return (
     <div className="App">
-      <button 
-        className="back-btn"
-        onClick={() => setGameMode('menu')}
-      >
-        ← Назад до меню
-      </button>
-      <MultiplayerApp />
+      {!isInMultiplayerGame && (
+        <button 
+          className="back-btn"
+          onClick={() => setGameMode('menu')}
+        >
+          ← Назад до меню
+        </button>
+      )}
+      <MultiplayerApp onGameStateChange={handleMultiplayerGameStateChange} />
     </div>
   );
 }

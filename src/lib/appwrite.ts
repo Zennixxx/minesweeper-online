@@ -1,11 +1,11 @@
-import { Client, Databases, Account, ID, Query, Models } from 'appwrite';
+import { Client, Databases, ID, Query, Models } from 'appwrite';
 
 // Appwrite Configuration
 // ⚠️ ВАЖНО: Замените эти значения на свои из Appwrite Console
-const APPWRITE_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // или ваш self-hosted endpoint
-const APPWRITE_PROJECT_ID = '697e466f003aeb849026'; // Замените на ID вашего проекта
+const APPWRITE_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // або ваш self-hosted endpoint
+const APPWRITE_PROJECT_ID = '697e466f003aeb849026'; // Замініть на ID вашого проекту
 
-// Database and Collection IDs (создайте их в Appwrite Console)
+// Database and Collection IDs (створіть їх в Appwrite Console)
 export const DATABASE_ID = 'minesweeper_db';
 export const LOBBIES_COLLECTION_ID = 'lobbies';
 export const GAMES_COLLECTION_ID = 'games';
@@ -17,7 +17,6 @@ const client = new Client()
 
 // Initialize Services
 export const databases = new Databases(client);
-export const account = new Account(client);
 export { client, ID, Query };
 export type { Models };
 
@@ -38,4 +37,23 @@ export const getPlayerName = (): string => {
 
 export const setPlayerName = (name: string): void => {
   localStorage.setItem('minesweeper_player_name', name);
+};
+
+// Session state management
+export const saveGameSession = (gameId: string, lobbyId: string | null, isSpectator: boolean = false): void => {
+  localStorage.setItem('minesweeper_active_game', JSON.stringify({ gameId, lobbyId, isSpectator }));
+};
+
+export const getGameSession = (): { gameId: string; lobbyId: string | null; isSpectator: boolean } | null => {
+  const session = localStorage.getItem('minesweeper_active_game');
+  if (!session) return null;
+  try {
+    return JSON.parse(session);
+  } catch {
+    return null;
+  }
+};
+
+export const clearGameSession = (): void => {
+  localStorage.removeItem('minesweeper_active_game');
 };

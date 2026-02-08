@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lobby, LobbyStatus, MultiplayerGameState, deserializeLobbyPlayers } from '../../multiplayerTypes';
+import { Lobby, LobbyStatus, MultiplayerGameState, deserializeLobbyPlayers, GameMode, GAME_MODE_LABELS } from '../../multiplayerTypes';
 import { getLobby, leaveLobby, startGame, getGame } from '../../multiplayerService';
 import { getOrCreatePlayerId, client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
 import { DIFFICULTY_PRESETS, DifficultyLevel } from '../../types';
@@ -115,7 +115,10 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
       <div className="lobby-room-card">
         <div className="lobby-room-header">
           <h2>🎮 {lobby.name}</h2>
-          <span className="difficulty-badge">{getDifficultyLabel(lobby.difficulty)}</span>
+          <div className="lobby-room-badges">
+            <span className="difficulty-badge">{getDifficultyLabel(lobby.difficulty)}</span>
+            <span className="mode-badge">{GAME_MODE_LABELS[(lobby.gameMode || 'classic') as GameMode] || '♟️ Класичний'}</span>
+          </div>
         </div>
 
         <div className="players-section">

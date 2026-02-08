@@ -4,3 +4,4 @@ export { LobbyList } from './LobbyList';
 export { CreateLobby } from './CreateLobby';
 export { LobbyRoom } from './LobbyRoom';
 export { MultiplayerGame } from './MultiplayerGame';
+export { RaceGame } from './RaceGame';

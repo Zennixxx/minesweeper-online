@@ -1,19 +1,58 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { PlayerNameModal } from './PlayerNameModal';
 import { LobbyList } from './LobbyList';
 import { CreateLobby } from './CreateLobby';
 import { LobbyRoom } from './LobbyRoom';
 import { MultiplayerGame } from './MultiplayerGame';
-import { Lobby, MultiplayerGameState } from '../../multiplayerTypes';
+import { RaceGame } from './RaceGame';
+import { Lobby, MultiplayerGameState, MultiplayerGameStatus, GameMode } from '../../multiplayerTypes';
+import { getGame } from '../../multiplayerService';
+import { saveGameSession, getGameSession, clearGameSession, getPlayerName } from '../../lib/appwrite';
 
 type GameScreen = 'name' | 'lobby-list' | 'create-lobby' | 'lobby-room' | 'game' | 'spectate';
 
-export const MultiplayerApp: React.FC = () => {
+interface MultiplayerAppProps {
+  onGameStateChange?: (inGame: boolean) => void;
+}
+
+export const MultiplayerApp: React.FC<MultiplayerAppProps> = ({ onGameStateChange }) => {
   const [screen, setScreen] = useState<GameScreen>('name');
   const [playerName, setPlayerName] = useState<string>('');
   const [currentLobby, setCurrentLobby] = useState<Lobby | null>(null);
   const [currentGame, setCurrentGame] = useState<MultiplayerGameState | null>(null);
   const [showEditName, setShowEditName] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(true);
+
+  // Notify parent about game state changes
+  useEffect(() => {
+    const inGame = screen === 'game' || screen === 'spectate';
+    onGameStateChange?.(inGame);
+  }, [screen, onGameStateChange]);
+
+  // Check for saved game session on mount
+  useEffect(() => {
+    const recoverSession = async () => {
+      const session = getGameSession();
+      if (session) {
+        try {
+          const game = await getGame(session.gameId);
+          if (game.status !== MultiplayerGameStatus.FINISHED) {
+            setCurrentGame(game);
+            setScreen(session.isSpectator ? 'spectate' : 'game');
+            const savedName = getPlayerName();
+            setPlayerName(savedName);
+          } else {
+            clearGameSession();
+          }
+        } catch {
+          clearGameSession();
+        }
+      }
+      setIsRecovering(false);
+    };
+
+    recoverSession();
+  }, []);
 
   const handleNameSet = useCallback((name: string) => {
     setPlayerName(name);
@@ -47,22 +86,36 @@ export const MultiplayerApp: React.FC = () => {
   const handleGameStart = useCallback((game: MultiplayerGameState) => {
     setCurrentGame(game);
     setScreen('game');
+    saveGameSession(game.$id!, game.lobbyId, false);
   }, []);
 
   const handleSpectate = useCallback((game: MultiplayerGameState) => {
     setCurrentGame(game);
     setScreen('spectate');
+    saveGameSession(game.$id!, game.lobbyId, true);
   }, []);
 
   const handleGameEnd = useCallback(() => {
     setCurrentGame(null);
     setCurrentLobby(null);
     setScreen('lobby-list');
+    clearGameSession();
   }, []);
 
   const handleBackToList = useCallback(() => {
     setScreen('lobby-list');
   }, []);
+
+  if (isRecovering) {
+    return (
+      <div className="multiplayer-app">
+        <div className="loading-screen">
+          <div className="spinner"></div>
+          <p>Завантаження...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="multiplayer-app">
@@ -117,18 +170,33 @@ export const MultiplayerApp: React.FC = () => {
       )}
 
       {screen === 'game' && currentGame && (
-        <MultiplayerGame 
-          game={currentGame}
-          onGameEnd={handleGameEnd}
-        />
+        currentGame.gameMode === GameMode.RACE ? (
+          <RaceGame 
+            game={currentGame}
+            onGameEnd={handleGameEnd}
+          />
+        ) : (
+          <MultiplayerGame 
+            game={currentGame}
+            onGameEnd={handleGameEnd}
+          />
+        )
       )}
 
       {screen === 'spectate' && currentGame && (
-        <MultiplayerGame 
-          game={currentGame}
-          onGameEnd={handleGameEnd}
-          isSpectator={true}
-        />
+        currentGame.gameMode === GameMode.RACE ? (
+          <RaceGame 
+            game={currentGame}
+            onGameEnd={handleGameEnd}
+            isSpectator={true}
+          />
+        ) : (
+          <MultiplayerGame 
+            game={currentGame}
+            onGameEnd={handleGameEnd}
+            isSpectator={true}
+          />
+        )
       )}
     </div>
   );

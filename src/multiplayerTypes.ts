@@ -7,6 +7,22 @@ export enum MultiplayerGameStatus {
   FINISHED = 'finished'     // Гра завершена
 }
 
+// Game Mode
+export enum GameMode {
+  CLASSIC = 'classic',
+  RACE = 'race'
+}
+
+export const GAME_MODE_LABELS: Record<GameMode, string> = {
+  [GameMode.CLASSIC]: '♟️ Класичний',
+  [GameMode.RACE]: '⚡ На швидкість'
+};
+
+export const GAME_MODE_DESCRIPTIONS: Record<GameMode, string> = {
+  [GameMode.CLASSIC]: 'Гравці ходять по черзі',
+  [GameMode.RACE]: 'Хто швидше розмінує поле!'
+};
+
 // Lobby Status
 export enum LobbyStatus {
   WAITING = 'waiting',      // Очікування гравців
@@ -41,6 +57,7 @@ export interface Lobby {
   guestName: string | null;  // Deprecated, for backwards compatibility
   status: LobbyStatus;
   difficulty: DifficultyLevel;
+  gameMode: string;          // GameMode - 'classic' or 'race'
   createdAt: string;
   gameId: string | null;
 }
@@ -68,6 +85,12 @@ export interface MultiplayerGameState {
   lastMoveBy: string | null;
   lastMoveCell: string | null; // "row-col"
   spectators?: string; // JSON stringified string[] (spectator IDs)
+  gameMode: string;           // 'classic' or 'race'
+  hostBoard: string;          // Race mode: JSON string[] of revealed cell keys for host
+  guestBoard: string;         // Race mode: JSON string[] of revealed cell keys for guest
+  startTime: string;          // Race mode: ISO timestamp of game start
+  hostFinished: boolean;      // Race mode: whether host revealed all safe cells
+  guestFinished: boolean;     // Race mode: whether guest revealed all safe cells
 }
 
 // Serialize/deserialize players

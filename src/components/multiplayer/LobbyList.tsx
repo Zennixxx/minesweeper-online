@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus, deserializeLobbyPlayers } from '../../multiplayerTypes';
+import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus, deserializeLobbyPlayers, GameMode, GAME_MODE_LABELS } from '../../multiplayerTypes';
 import { getLobbies, joinLobby, deleteLobby, getGame, joinAsSpectator } from '../../multiplayerService';
 import { getOrCreatePlayerId } from '../../lib/appwrite';
 import { client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
@@ -174,6 +174,10 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                 <div className="info-row">
                   <span className="label">Складність:</span>
                   <span className="value">{getDifficultyLabel(lobby.difficulty)}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Режим:</span>
+                  <span className="value">{GAME_MODE_LABELS[(lobby.gameMode || 'classic') as GameMode] || '♟️ Класичний'}</span>
                 </div>
                 <div className="info-row">
                   <span className="label">{lobby.password ? '🔒' : '🔓'}</span>

@@ -13,6 +13,7 @@ import {
   LobbyStatus, 
   MultiplayerGameState, 
   MultiplayerGameStatus,
+  GameMode,
   serializeBoard,
   serializeConfig,
   LobbyPlayer,
@@ -34,7 +35,8 @@ export const createLobby = async (
   name: string, 
   password: string, 
   difficulty: DifficultyLevel,
-  maxPlayers: number = 2
+  maxPlayers: number = 2,
+  gameMode: string = GameMode.CLASSIC
 ): Promise<Lobby> => {
   const playerId = getOrCreatePlayerId();
   const playerName = getPlayerName();
@@ -52,6 +54,7 @@ export const createLobby = async (
     guestName: null,
     status: LobbyStatus.WAITING,
     difficulty,
+    gameMode,
     createdAt: new Date().toISOString(),
     gameId: null
   };
@@ -260,8 +263,19 @@ export const startGame = async (lobbyId: string): Promise<MultiplayerGameState> 
     minesRevealed: 0,
     totalMines: config.mines,
     lastMoveBy: null,
-    lastMoveCell: null
+    lastMoveCell: null,
+    gameMode: lobby.gameMode || GameMode.CLASSIC,
+    hostBoard: '[]',
+    guestBoard: '[]',
+    startTime: new Date().toISOString(),
+    hostFinished: false,
+    guestFinished: false
   };
+
+  // Race mode: no turns, both play simultaneously
+  if (lobby.gameMode === GameMode.RACE) {
+    gameData.currentTurn = '';
+  }
 
   const response = await databases.createDocument(
     DATABASE_ID,
@@ -337,8 +351,14 @@ export const makeMove = async (
   const currentPlayerIndex = gamePlayers.findIndex(p => p.id === playerId);
 
   if (cell.isMine) {
-    // Hit a mine - turn passes to next player
+    // Hit a mine - lose points and turn passes to next player
     newMinesRevealed++;
+    
+    // Penalty: lose 3 points for hitting a mine
+    if (currentPlayerIndex >= 0) {
+      gamePlayers[currentPlayerIndex].score = Math.max(0, gamePlayers[currentPlayerIndex].score - 3);
+    }
+    
     if (turnOrder.length > 0) {
       nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
       nextTurn = turnOrder[nextTurnIndex];
@@ -438,6 +458,154 @@ export const makeMove = async (
   }
 
   return response as unknown as MultiplayerGameState;
+};
+
+// ==================== RACE MODE FUNCTIONS ====================
+
+// Make a move in race mode (simultaneous play, no turns)
+export const makeRaceMove = async (
+  gameId: string,
+  row: number,
+  col: number
+): Promise<MultiplayerGameState> => {
+  const game = await getGame(gameId);
+  const playerId = getOrCreatePlayerId();
+
+  if (game.status !== MultiplayerGameStatus.PLAYING) {
+    throw new Error('Гра вже завершена');
+  }
+
+  const isHost = playerId === game.hostId;
+  const masterBoard = JSON.parse(game.board);
+  const revealedStr = isHost ? (game.hostBoard || '[]') : (game.guestBoard || '[]');
+  const revealed = new Set<string>(JSON.parse(revealedStr));
+
+  const cell = masterBoard[row][col];
+  const key = `${row}-${col}`;
+
+  if (revealed.has(key)) {
+    throw new Error('Ця клітинка вже відкрита');
+  }
+
+  let currentScore = isHost ? game.hostScore : game.guestScore;
+
+  if (cell.isMine) {
+    // Hit a mine: lose 3 points
+    revealed.add(key);
+    currentScore = Math.max(0, currentScore - 3);
+  } else {
+    // Safe cell: gain points
+    revealed.add(key);
+    currentScore += cell.neighborMines === 0 ? 1 : cell.neighborMines;
+
+    // Cascade for empty cells
+    if (cell.neighborMines === 0) {
+      const cascaded = raceRevealEmptyCells(masterBoard, revealed, row, col);
+      for (const [cr, cc] of cascaded) {
+        const cCell = masterBoard[cr][cc];
+        currentScore += cCell.neighborMines === 0 ? 1 : cCell.neighborMines;
+      }
+    }
+  }
+
+  // Check if player finished all safe cells
+  const rows = masterBoard.length;
+  const cols = masterBoard[0].length;
+  let totalSafe = 0;
+  let revealedSafe = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!masterBoard[r][c].isMine) {
+        totalSafe++;
+        if (revealed.has(`${r}-${c}`)) {
+          revealedSafe++;
+        }
+      }
+    }
+  }
+  const finished = revealedSafe >= totalSafe;
+
+  const updateData: any = {};
+  const revealedArray = JSON.stringify(Array.from(revealed));
+
+  if (isHost) {
+    updateData.hostBoard = revealedArray;
+    updateData.hostScore = currentScore;
+    if (finished) updateData.hostFinished = true;
+  } else {
+    updateData.guestBoard = revealedArray;
+    updateData.guestScore = currentScore;
+    if (finished) updateData.guestFinished = true;
+  }
+
+  updateData.lastMoveBy = playerId;
+  updateData.lastMoveCell = key;
+
+  // If this player finished, end the game
+  if (finished && game.status === MultiplayerGameStatus.PLAYING) {
+    updateData.status = MultiplayerGameStatus.FINISHED;
+    updateData.winnerId = playerId;
+  }
+
+  const response = await databases.updateDocument(
+    DATABASE_ID,
+    GAMES_COLLECTION_ID,
+    gameId,
+    updateData
+  );
+
+  if (finished) {
+    try {
+      await databases.deleteDocument(DATABASE_ID, LOBBIES_COLLECTION_ID, game.lobbyId);
+    } catch (e) {
+      // Lobby might already be deleted
+    }
+  }
+
+  return response as unknown as MultiplayerGameState;
+};
+
+// Helper: Reveal empty cells recursively for race mode
+const raceRevealEmptyCells = (
+  masterBoard: any[][],
+  revealed: Set<string>,
+  startRow: number,
+  startCol: number
+): [number, number][] => {
+  const rows = masterBoard.length;
+  const cols = masterBoard[0].length;
+  const newRevealed: [number, number][] = [];
+  const queue: [number, number][] = [[startRow, startCol]];
+  const visited = new Set<string>([`${startRow}-${startCol}`]);
+
+  while (queue.length > 0) {
+    const [r, c] = queue.shift()!;
+    const cell = masterBoard[r][c];
+
+    if (cell.neighborMines === 0 && !cell.isMine) {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r + dr;
+          const nc = c + dc;
+          const nkey = `${nr}-${nc}`;
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited.has(nkey)) {
+            visited.add(nkey);
+            const neighbor = masterBoard[nr][nc];
+            if (!neighbor.isMine && !revealed.has(nkey)) {
+              revealed.add(nkey);
+              newRevealed.push([nr, nc]);
+              if (neighbor.neighborMines === 0) {
+                queue.push([nr, nc]);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return newRevealed;
 };
 
 // Helper: Reveal empty cells recursively
