@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loginWithGoogle = useCallback(() => {
-    const redirectUrl = window.location.origin + window.location.pathname;
+    const redirectUrl = window.location.origin + '/multiplayer';
     // createOAuth2Token redirects to Google, then back with ?userId=...&secret=... in URL
     account.createOAuth2Token(OAuthProvider.Google, redirectUrl, redirectUrl);
   }, []);
