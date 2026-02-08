@@ -24,6 +24,25 @@
   font-size: 1.2rem;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-badge {
+  font-size: 0.85rem;
+  cursor: help;
+}
+
+.btn-logout-small:hover {
+  background: rgba(255, 80, 80, 0.15) !important;
+  border-color: rgba(255, 80, 80, 0.3) !important;
 }
 
 .btn-edit-name {
@@ -175,6 +194,45 @@
   cursor: not-allowed;
 }
 
+/* Auth Info in Modal */
+.auth-info {
+  background: rgba(80, 200, 120, 0.08);
+  border: 1px solid rgba(80, 200, 120, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.auth-status {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0 0 8px 0;
+}
+
+.auth-status strong {
+  color: var(--text-primary);
+}
+
+.btn-logout {
+  background: rgba(255, 80, 80, 0.1);
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  color: rgba(255, 80, 80, 0.9);
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-logout:hover {
+  background: rgba(255, 80, 80, 0.2) !important;
+  border-color: rgba(255, 80, 80, 0.4) !important;
+  color: rgba(255, 80, 80, 1) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 /* OAuth Section */
 .oauth-section {
   margin-top: 20px;
@@ -245,6 +303,36 @@
 .loading-screen p {
   color: var(--text-secondary);
   font-size: 1.1rem;
+}
+
+/* Login Screen */
+.login-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 20px;
+  text-align: center;
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 50px 40px;
+  max-width: 420px;
+  margin: 0 auto;
+  box-shadow: var(--glass-shadow);
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.login-screen .btn-google {
+  margin-top: 10px;
 }
 
 /* ==================== Lobby List ==================== */

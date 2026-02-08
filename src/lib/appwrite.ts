@@ -1,4 +1,4 @@
-import { Client, Databases, ID, Query, Models } from 'appwrite';
+import { Client, Databases, Account, ID, Query, Models, OAuthProvider } from 'appwrite';
 
 // Appwrite Configuration
 // ⚠️ ВАЖНО: Замените эти значения на свои из Appwrite Console
@@ -17,17 +17,19 @@ const client = new Client()
 
 // Initialize Services
 export const databases = new Databases(client);
-export { client, ID, Query };
+export const account = new Account(client);
+export { client, ID, Query, OAuthProvider };
 export type { Models };
 
-// Helper function to generate player ID (stored in localStorage)
+// In-memory player ID — set from Appwrite session, never persisted to localStorage
+let _cachedPlayerId: string = '';
+
+export const setPlayerId = (id: string): void => {
+  _cachedPlayerId = id;
+};
+
 export const getOrCreatePlayerId = (): string => {
-  let playerId = localStorage.getItem('minesweeper_player_id');
-  if (!playerId) {
-    playerId = ID.unique();
-    localStorage.setItem('minesweeper_player_id', playerId);
-  }
-  return playerId;
+  return _cachedPlayerId;
 };
 
 // Helper function to get/set player name

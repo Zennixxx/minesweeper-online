@@ -1,50 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { getPlayerName, setPlayerName as savePlayerName } from '../../lib/appwrite';
+import React, { useState } from 'react';
+import { setPlayerName as savePlayerName } from '../../lib/appwrite';
+import { useAuth } from '../../lib/AuthContext';
 
 interface PlayerNameModalProps {
   onNameSet: (name: string) => void;
-  isEdit?: boolean;
   onClose?: () => void;
 }
 
-export const PlayerNameModal: React.FC<PlayerNameModalProps> = ({ onNameSet, isEdit = false, onClose }) => {
-  const [name, setName] = useState('');
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const savedName = getPlayerName();
-    if (isEdit) {
-      setName(savedName || '');
-      setIsVisible(true);
-    } else if (savedName && savedName !== 'Гравець') {
-      onNameSet(savedName);
-    } else {
-      setIsVisible(true);
-    }
-  }, [onNameSet, isEdit]);
+export const PlayerNameModal: React.FC<PlayerNameModalProps> = ({ onNameSet, onClose }) => {
+  const { playerName, updatePlayerName } = useAuth();
+  const [name, setName] = useState(playerName || '');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
       savePlayerName(name.trim());
+      updatePlayerName(name.trim());
       onNameSet(name.trim());
-      setIsVisible(false);
       if (onClose) onClose();
     }
   };
 
   const handleClose = () => {
-    setIsVisible(false);
     if (onClose) onClose();
   };
-
-  if (!isVisible) return null;
 
   return (
     <div className="modal-overlay">
       <div className="modal">
-        <h2>{isEdit ? '✏️ Змінити нік' : '👋 Ласкаво просимо!'}</h2>
-        <p>{isEdit ? 'Введіть новий нік:' : 'Введіть ваше ім\'я для гри:'}</p>
+        <h2>✏️ Змінити нік</h2>
+        <p>Введіть новий нік:</p>
         <form onSubmit={handleSubmit}>
           <input
             type="text"
@@ -55,13 +40,11 @@ export const PlayerNameModal: React.FC<PlayerNameModalProps> = ({ onNameSet, isE
             autoFocus
           />
           <div className="modal-buttons">
-            {isEdit && (
-              <button type="button" className="btn-cancel" onClick={handleClose}>
-                Скасувати
-              </button>
-            )}
+            <button type="button" className="btn-cancel" onClick={handleClose}>
+              Скасувати
+            </button>
             <button type="submit" disabled={!name.trim()}>
-              {isEdit ? 'Зберегти' : 'Почати'}
+              Зберегти
             </button>
           </div>
         </form>
