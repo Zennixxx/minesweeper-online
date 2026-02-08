@@ -1,4 +1,4 @@
-import { Client, Databases, Account, ID, Query, Models, OAuthProvider } from 'appwrite';
+import { Client, Databases, Account, ID, Query, Models, OAuthProvider, Permission, Role } from 'appwrite';
 
 // Appwrite Configuration
 // ⚠️ ВАЖНО: Замените эти значения на свои из Appwrite Console
@@ -18,7 +18,7 @@ const client = new Client()
 // Initialize Services
 export const databases = new Databases(client);
 export const account = new Account(client);
-export { client, ID, Query, OAuthProvider };
+export { client, ID, Query, OAuthProvider, Permission, Role };
 export type { Models };
 
 // In-memory player ID — set from Appwrite session, never persisted to localStorage

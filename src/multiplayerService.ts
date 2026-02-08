@@ -5,6 +5,8 @@ import {
   GAMES_COLLECTION_ID,
   ID, 
   Query,
+  Permission,
+  Role,
   getOrCreatePlayerId,
   getPlayerName
 } from './lib/appwrite';
@@ -63,7 +65,12 @@ export const createLobby = async (
     DATABASE_ID,
     LOBBIES_COLLECTION_ID,
     ID.unique(),
-    lobbyData
+    lobbyData,
+    [
+      Permission.read(Role.users()),          // all logged-in users can see lobbies
+      Permission.update(Role.users()),         // any logged-in user can join/leave
+      Permission.delete(Role.user(playerId)),  // only host can delete
+    ]
   );
 
   return response as unknown as Lobby;
@@ -277,11 +284,19 @@ export const startGame = async (lobbyId: string): Promise<MultiplayerGameState> 
     gameData.currentTurn = '';
   }
 
+  // Game permissions: all logged-in users can read & update (for moves), only host can delete
+  const gamePermissions = [
+    Permission.read(Role.users()),
+    Permission.update(Role.users()),        // players & spectators need to update
+    Permission.delete(Role.user(lobby.hostId)),
+  ];
+
   const response = await databases.createDocument(
     DATABASE_ID,
     GAMES_COLLECTION_ID,
     ID.unique(),
-    gameData
+    gameData,
+    gamePermissions
   );
 
   // Update lobby with game ID
