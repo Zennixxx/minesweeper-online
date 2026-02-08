@@ -10,6 +10,8 @@ interface AuthState {
   playerName: string;
   playerId: string;
   loginWithGoogle: () => void;
+  loginWithDiscord: () => void;
+  loginWithGithub: () => void;
   logout: () => Promise<void>;
   updatePlayerName: (name: string) => void;
 }
@@ -77,8 +79,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = useCallback(() => {
     const redirectUrl = window.location.origin + '/multiplayer';
-    // createOAuth2Token redirects to Google, then back with ?userId=...&secret=... in URL
     account.createOAuth2Token(OAuthProvider.Google, redirectUrl, redirectUrl);
+  }, []);
+
+  const loginWithDiscord = useCallback(() => {
+    const redirectUrl = window.location.origin + '/multiplayer';
+    account.createOAuth2Token(OAuthProvider.Discord, redirectUrl, redirectUrl);
+  }, []);
+
+  const loginWithGithub = useCallback(() => {
+    const redirectUrl = window.location.origin + '/multiplayer';
+    account.createOAuth2Token(OAuthProvider.Github, redirectUrl, redirectUrl);
   }, []);
 
   const logout = useCallback(async () => {
@@ -108,6 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       playerName,
       playerId,
       loginWithGoogle,
+      loginWithDiscord,
+      loginWithGithub,
       logout,
       updatePlayerName,
     }}>

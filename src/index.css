@@ -24,16 +24,38 @@
   --warning: rgba(255, 200, 80, 0.9);
 }
 
+@keyframes bgShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--bg-dark);
-  background-image: 
-    radial-gradient(ellipse at 20% 20%, rgba(255, 255, 255, 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, rgba(255, 255, 255, 0.015) 0%, transparent 50%);
+  background: linear-gradient(
+    135deg,
+    #0a0a0a 0%,
+    #0d0518 12%,
+    #140a28 25%,
+    #1a0e35 38%,
+    #10071f 50%,
+    #1a0b30 62%,
+    #12082a 75%,
+    #0d0518 88%,
+    #0a0a0a 100%
+  );
+  background-size: 400% 400%;
+  animation: bgShift 20s ease infinite;
   min-height: 100vh;
   display: flex;
   align-items: center;

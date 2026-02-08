@@ -1,5 +1,6 @@
 import React from 'react';
 import { Cell as CellType, CellState } from '../types';
+import { BombIcon, FlagIcon } from '../icons';
 
 interface CellProps {
   cell: CellType;
@@ -29,14 +30,14 @@ export const Cell: React.FC<CellProps> = ({ cell, onLeftClick, onRightClick, gam
     onRightClick(cell.row, cell.col);
   };
 
-  const getCellContent = (): string => {
+  const getCellContent = (): React.ReactNode => {
     if (cell.state === CellState.FLAGGED) {
-      return '🚩';
+      return <FlagIcon size={14} />;
     }
     
     if (cell.state === CellState.REVEALED) {
       if (cell.isMine) {
-        return '💣';
+        return <BombIcon size={14} />;
       }
       
       if (cell.neighborMines > 0) {

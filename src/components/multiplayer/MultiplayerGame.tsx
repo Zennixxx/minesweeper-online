@@ -4,6 +4,7 @@ import { getGame, makeMove, leaveGame, leaveAsSpectator } from '../../multiplaye
 import { getOrCreatePlayerId, client, DATABASE_ID, GAMES_COLLECTION_ID } from '../../lib/appwrite';
 import { Cell, CellState } from '../../types';
 import { GameBoard } from '../GameBoard';
+import { BombIcon, TrophyIcon, CrownIcon, GamepadIcon, TargetIcon, HourglassIcon, EyeIcon, DoorIcon, HandshakeIcon, SadFaceIcon } from '../../icons';
 
 interface MultiplayerGameProps {
   game: MultiplayerGameState;
@@ -155,14 +156,14 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
     const gamePlayers = deserializeGamePlayers(game.players);
     
     if (game.winnerId === 'draw') {
-      return '🤝 Нічия!';
+      return <><HandshakeIcon size={18} /> Нічия!</>;
     } else if (isSpectator) {
       const winner = gamePlayers.find(p => p.id === game.winnerId);
-      return `🏆 Переможець: ${winner?.name || 'Невідомий'}`;
+      return <><TrophyIcon size={18} /> Переможець: {winner?.name || 'Невідомий'}</>;
     } else if (game.winnerId === playerId) {
-      return '🏆 Ви перемогли!';
+      return <><TrophyIcon size={18} /> Ви перемогли!</>;
     } else {
-      return '😔 Ви програли!';
+      return <><SadFaceIcon size={18} /> Ви програли!</>;
     }
   };
 
@@ -175,12 +176,12 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
   return (
     <div className="multiplayer-game-container">
       <div className="game-header-mp">
-        <h2>💣 Сапер - {isSpectator ? 'Режим глядача' : 'Онлайн битва'}</h2>
+        <h2><BombIcon size={20} /> Сапер - {isSpectator ? 'Режим глядача' : 'Онлайн битва'}</h2>
         {isSpectator && (
-          <div className="spectator-badge">👁️ Ви спостерігаєте за грою</div>
+          <div className="spectator-badge"><EyeIcon size={14} /> Ви спостерігаєте за грою</div>
         )}
         {spectatorCount > 0 && (
-          <div className="spectator-count">👁️ Глядачів: {spectatorCount}</div>
+          <div className="spectator-count"><EyeIcon size={14} /> Глядачів: {spectatorCount}</div>
         )}
       </div>
 
@@ -189,7 +190,7 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
           <React.Fragment key={player.id}>
             {index > 0 && <div className="vs-badge">VS</div>}
             <div className={`player-score-card ${game.currentTurn === player.id ? 'active' : ''} ${player.id === playerId ? 'me' : ''}`}>
-              <div className="player-avatar">{index === 0 ? '👑' : '🎮'}</div>
+              <div className="player-avatar">{index === 0 ? <CrownIcon size={20} /> : <GamepadIcon size={20} />}</div>
               <div className="player-details">
                 <div className="player-name-score">
                   {player.name}
@@ -198,7 +199,7 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
                 <div className="score">Очки: <strong>{player.score}</strong></div>
               </div>
               {game.currentTurn === player.id && game.status === MultiplayerGameStatus.PLAYING && (
-                <div className="turn-indicator">🎯 Хід</div>
+                <div className="turn-indicator"><TargetIcon size={14} /> Хід</div>
               )}
             </div>
           </React.Fragment>
@@ -208,16 +209,16 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
       {game.status === MultiplayerGameStatus.PLAYING && (
         <div className={`turn-message ${isSpectator ? 'spectator' : isMyTurn ? 'your-turn' : 'opponent-turn'}`}>
           {isSpectator 
-            ? `🎯 Зараз ходить: ${currentPlayerName}`
+            ? <><TargetIcon size={14} /> Зараз ходить: {currentPlayerName}</>
             : isMyTurn 
-              ? '🎯 Ваш хід! Оберіть клітинку' 
-              : `⏳ Хід гравця ${currentPlayerName}...`}
+              ? <><TargetIcon size={14} /> Ваш хід! Оберіть клітинку</> 
+              : <><HourglassIcon size={14} /> Хід гравця {currentPlayerName}...</>}
         </div>
       )}
 
       {opponentLeft && (
         <div className="game-over-message victory">
-          🏆 Суперник вийшов з гри! Ви перемогли!
+          <TrophyIcon size={18} /> Суперник вийшов з гри! Ви перемогли!
           <div className="final-scores">
             Перемога за відсутністю суперника
           </div>
@@ -267,7 +268,7 @@ export const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ game: initialG
 
       <div className="game-actions">
         <button className="btn btn-danger" onClick={handleLeaveGame}>
-          {isSpectator ? '🚪 Покинути перегляд' : '🚪 Вийти з гри'}
+          {isSpectator ? <><DoorIcon size={14} /> Покинути перегляд</> : <><DoorIcon size={14} /> Вийти з гри</>}
         </button>
       </div>
     </div>

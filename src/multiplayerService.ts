@@ -32,6 +32,28 @@ import { createBoard, placeMines, calculateNeighborMines } from './gameUtils';
 
 // ==================== LOBBY FUNCTIONS ====================
 
+// Check if player is already in any active lobby
+const getPlayerActiveLobby = async (playerId: string): Promise<Lobby | null> => {
+  const response = await databases.listDocuments(
+    DATABASE_ID,
+    LOBBIES_COLLECTION_ID,
+    [
+      Query.equal('status', [LobbyStatus.WAITING, LobbyStatus.FULL]),
+      Query.limit(100)
+    ]
+  );
+
+  const lobbies = response.documents as unknown as Lobby[];
+  for (const lobby of lobbies) {
+    // Check if player is host
+    if (lobby.hostId === playerId) return lobby;
+    // Check if player is in the players list
+    const players = deserializeLobbyPlayers(lobby.players);
+    if (players.some(p => p.id === playerId)) return lobby;
+  }
+  return null;
+};
+
 // Create a new lobby
 export const createLobby = async (
   name: string, 
@@ -42,6 +64,12 @@ export const createLobby = async (
 ): Promise<Lobby> => {
   const playerId = getOrCreatePlayerId();
   const playerName = getPlayerName();
+
+  // Check if player already has an active lobby
+  const existingLobby = await getPlayerActiveLobby(playerId);
+  if (existingLobby) {
+    throw new Error('Ви вже перебуваєте в лобі. Спочатку вийдіть з поточного.');
+  }
   
   const players: LobbyPlayer[] = [{ id: playerId, name: playerName }];
   
@@ -146,6 +174,12 @@ export const joinLobby = async (lobbyId: string, password: string): Promise<Lobb
   // Check if already in lobby
   if (players.some(p => p.id === playerId)) {
     throw new Error('Ви вже в цьому лобі');
+  }
+
+  // Check if player is in another active lobby
+  const existingLobby = await getPlayerActiveLobby(playerId);
+  if (existingLobby && existingLobby.$id !== lobbyId) {
+    throw new Error('Ви вже перебуваєте в іншому лобі. Спочатку вийдіть з нього.');
   }
 
   // Check if lobby is full

@@ -3,6 +3,7 @@ import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus, deseri
 import { getLobbies, joinLobby, deleteLobby, getGame, joinAsSpectator } from '../../multiplayerService';
 import { getOrCreatePlayerId } from '../../lib/appwrite';
 import { client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
+import { HourglassIcon, CheckCircleIcon, GamepadIcon, EasyDot, MediumDot, HardDot, RefreshIcon, PlusIcon, DesertIcon, LockIcon, UnlockIcon, TrashIcon, InboxIcon, DoorIcon, EyeIcon } from '../../icons';
 
 interface LobbyListProps {
   onJoinLobby: (lobby: Lobby) => void;
@@ -109,11 +110,11 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
   const getStatusBadge = (status: LobbyStatus) => {
     switch (status) {
       case LobbyStatus.WAITING:
-        return <span className="badge badge-waiting">⏳ Очікує</span>;
+        return <span className="badge badge-waiting"><HourglassIcon size={12} /> Очікує</span>;
       case LobbyStatus.FULL:
-        return <span className="badge badge-full">✅ Готове</span>;
+        return <span className="badge badge-full"><CheckCircleIcon size={12} /> Готове</span>;
       case LobbyStatus.IN_GAME:
-        return <span className="badge badge-playing">🎮 Грає</span>;
+        return <span className="badge badge-playing"><GamepadIcon size={12} /> Грає</span>;
       default:
         return null;
     }
@@ -121,9 +122,9 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
 
   const getDifficultyLabel = (difficulty: string) => {
     switch (difficulty) {
-      case 'EASY': return '🟢 Легко';
-      case 'MEDIUM': return '🟡 Середньо';
-      case 'HARD': return '🔴 Складно';
+      case 'EASY': return <><EasyDot /> Легко</>;
+      case 'MEDIUM': return <><MediumDot /> Середньо</>;
+      case 'HARD': return <><HardDot /> Складно</>;
       default: return difficulty;
     }
   };
@@ -131,13 +132,13 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
   return (
     <div className="lobby-list-container">
       <div className="lobby-header">
-        <h2>🎮 Ігрові лобі</h2>
+        <h2><GamepadIcon size={20} /> Ігрові лобі</h2>
         <div className="lobby-actions">
           <button className="btn btn-refresh" onClick={fetchLobbies}>
-            🔄 Оновити
+            <RefreshIcon size={14} /> Оновити
           </button>
           <button className="btn btn-create" onClick={onCreateLobby}>
-            ➕ Створити лобі
+            <PlusIcon size={14} /> Створити лобі
           </button>
         </div>
       </div>
@@ -148,7 +149,7 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
         <div className="loading">Завантаження...</div>
       ) : lobbies.length === 0 ? (
         <div className="empty-list">
-          <p>🏜️ Немає активних лобі</p>
+          <p><DesertIcon size={20} /> Немає активних лобі</p>
           <p>Створіть нове лобі, щоб почати гру!</p>
         </div>
       ) : (
@@ -177,10 +178,10 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                 </div>
                 <div className="info-row">
                   <span className="label">Режим:</span>
-                  <span className="value">{GAME_MODE_LABELS[(lobby.gameMode || 'classic') as GameMode] || '♟️ Класичний'}</span>
+                  <span className="value">{GAME_MODE_LABELS[(lobby.gameMode || 'classic') as GameMode] || 'Класичний'}</span>
                 </div>
                 <div className="info-row">
-                  <span className="label">{lobby.password ? '🔒' : '🔓'}</span>
+                  <span className="label">{lobby.password ? <LockIcon size={14} /> : <UnlockIcon size={14} />}</span>
                   <span className="value">{lobby.password ? 'Захищено паролем' : 'Відкрите лобі'}</span>
                 </div>
               </div>
@@ -191,13 +192,13 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                     className="btn btn-danger"
                     onClick={() => handleDeleteLobby(lobby.$id!)}
                   >
-                    🗑️ Видалити
+                    <TrashIcon size={14} /> Видалити
                   </button>
                   <button 
                     className="btn btn-primary"
                     onClick={() => onJoinLobby(lobby)}
                   >
-                    📥 Увійти
+                    <InboxIcon size={14} /> Увійти
                   </button>
                 </div>
               ) : joiningLobbyId === lobby.$id ? (
@@ -235,7 +236,7 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                       className="btn btn-primary"
                       onClick={() => handleJoinClick(lobby)}
                     >
-                      🚪 Приєднатися
+                      <DoorIcon size={14} /> Приєднатися
                     </button>
                   )}
                   {lobby.status === LobbyStatus.IN_GAME && onSpectate && (
@@ -243,7 +244,7 @@ export const LobbyList: React.FC<LobbyListProps> = ({ onJoinLobby, onCreateLobby
                       className="btn btn-spectate"
                       onClick={() => handleSpectateClick(lobby)}
                     >
-                      👁️ Спостерігати
+                      <EyeIcon size={14} /> Спостерігати
                     </button>
                   )}
                 </div>

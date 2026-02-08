@@ -1,5 +1,6 @@
 import React from 'react';
 import { GameStatus, DifficultyLevel, DIFFICULTY_PRESETS } from '../types';
+import { PartyIcon, ExplosionIcon } from '../icons';
 
 const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
   EASY: 'Легко',
@@ -26,10 +27,10 @@ export const GameStatusPanel: React.FC<GameStatusProps> = ({
   onDifficultyChange,
   currentDifficulty
 }) => {
-  const getStatusEmoji = (): string => {
+  const getStatusIcon = (): string => {
     switch (status) {
       case GameStatus.READY:
-        return '🙂';
+        return '😀';
       case GameStatus.PLAYING:
         return '😐';
       case GameStatus.WON:
@@ -37,7 +38,7 @@ export const GameStatusPanel: React.FC<GameStatusProps> = ({
       case GameStatus.LOST:
         return '😵';
       default:
-        return '🙂';
+        return '😀';
     }
   };
 
@@ -63,7 +64,7 @@ export const GameStatusPanel: React.FC<GameStatusProps> = ({
             onClick={onNewGame}
             title="Нова гра"
           >
-            {getStatusEmoji()}
+            {getStatusIcon()}
           </button>
           
           <div className="info-item">
@@ -92,13 +93,13 @@ export const GameStatusPanel: React.FC<GameStatusProps> = ({
       
       {status === GameStatus.WON && (
         <div className="game-message victory">
-          🎉 Вітаємо! Ви виграли! 🎉
+          <PartyIcon size={18} /> Вітаємо! Ви виграли! <PartyIcon size={18} />
         </div>
       )}
       
       {status === GameStatus.LOST && (
         <div className="game-message defeat">
-          💥 Гра закінчена! Спробуйте ще раз! 💥
+          <ExplosionIcon size={18} /> Гра закінчена! Спробуйте ще раз!
         </div>
       )}
     </div>

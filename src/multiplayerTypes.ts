@@ -14,8 +14,8 @@ export enum GameMode {
 }
 
 export const GAME_MODE_LABELS: Record<GameMode, string> = {
-  [GameMode.CLASSIC]: '♟️ Класичний',
-  [GameMode.RACE]: '⚡ На швидкість'
+  [GameMode.CLASSIC]: 'Класичний',
+  [GameMode.RACE]: 'На швидкість'
 };
 
 export const GAME_MODE_DESCRIPTIONS: Record<GameMode, string> = {

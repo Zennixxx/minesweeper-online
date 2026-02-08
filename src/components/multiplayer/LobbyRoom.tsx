@@ -3,11 +3,12 @@ import { Lobby, LobbyStatus, MultiplayerGameState, deserializeLobbyPlayers, Game
 import { getLobby, leaveLobby, startGame, getGame } from '../../multiplayerService';
 import { getOrCreatePlayerId, client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
 import { DIFFICULTY_PRESETS, DifficultyLevel } from '../../types';
+import { EasyDot, MediumDot, HardDot, GamepadIcon, CrownIcon, QuestionIcon, TrashIcon, DoorIcon, HourglassIcon, RocketIcon } from '../../icons';
 
-const DIFFICULTY_EMOJI: Record<DifficultyLevel, string> = {
-  EASY: '🟢',
-  MEDIUM: '🟡',
-  HARD: '🔴'
+const DIFFICULTY_ICONS: Record<DifficultyLevel, React.ReactNode> = {
+  EASY: <EasyDot />,
+  MEDIUM: <MediumDot />,
+  HARD: <HardDot />
 };
 
 const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
@@ -101,7 +102,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
     const key = difficulty as DifficultyLevel;
     if (key in DIFFICULTY_PRESETS) {
       const preset = DIFFICULTY_PRESETS[key];
-      return `${DIFFICULTY_EMOJI[key]} ${DIFFICULTY_LABELS[key]} (${preset.rows}x${preset.cols}, ${preset.mines} мін)`;
+      return <>{DIFFICULTY_ICONS[key]} {DIFFICULTY_LABELS[key]} ({preset.rows}x{preset.cols}, {preset.mines} мін)</>;
     }
     return difficulty;
   };
@@ -114,10 +115,10 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
     <div className="lobby-room-container">
       <div className="lobby-room-card">
         <div className="lobby-room-header">
-          <h2>🎮 {lobby.name}</h2>
+          <h2><GamepadIcon size={20} /> {lobby.name}</h2>
           <div className="lobby-room-badges">
             <span className="difficulty-badge">{getDifficultyLabel(lobby.difficulty)}</span>
-            <span className="mode-badge">{GAME_MODE_LABELS[(lobby.gameMode || 'classic') as GameMode] || '♟️ Класичний'}</span>
+            <span className="mode-badge">{GAME_MODE_LABELS[(lobby.gameMode || 'classic') as GameMode] || 'Класичний'}</span>
           </div>
         </div>
 
@@ -126,7 +127,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
           <div className="players-grid multi-player">
             {players.map((player, index) => (
               <div key={player.id} className={`player-card ${player.id === playerId ? 'you' : ''}`}>
-                <div className="player-icon">{index === 0 ? '👑' : '🎮'}</div>
+                <div className="player-icon">{index === 0 ? <CrownIcon size={20} /> : <GamepadIcon size={20} />}</div>
                 <div className="player-name">
                   {player.name}
                   {player.id === playerId && <span className="you-badge">(Ви)</span>}
@@ -136,7 +137,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
             ))}
             {Array.from({ length: emptySlots }, (_, i) => (
               <div key={`empty-${i}`} className="player-card empty">
-                <div className="player-icon">❓</div>
+                <div className="player-icon"><QuestionIcon size={20} /></div>
                 <div className="player-name">Очікування гравця...</div>
                 <div className="player-role">Слот {players.length + i + 1}</div>
               </div>
@@ -164,7 +165,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
             onClick={handleLeaveLobby}
             disabled={loading}
           >
-            {isHost ? '🗑️ Видалити лобі' : '🚪 Вийти'}
+            {isHost ? <><TrashIcon size={14} /> Видалити лобі</> : <><DoorIcon size={14} /> Вийти</>}
           </button>
 
           {isHost && emptySlots === 0 && (
@@ -173,7 +174,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({ lobby: initialLobby, onGam
               onClick={handleStartGame}
               disabled={loading}
             >
-              {loading ? '⏳ Запуск...' : '🚀 Почати гру!'}
+              {loading ? <><HourglassIcon size={14} /> Запуск...</> : <><RocketIcon size={14} /> Почати гру!</>}
             </button>
           )}
         </div>

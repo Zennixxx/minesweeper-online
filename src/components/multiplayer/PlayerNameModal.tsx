@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { setPlayerName as savePlayerName } from '../../lib/appwrite';
 import { useAuth } from '../../lib/AuthContext';
+import { PencilIcon } from '../../icons';
 
 interface PlayerNameModalProps {
   onNameSet: (name: string) => void;
@@ -28,7 +29,7 @@ export const PlayerNameModal: React.FC<PlayerNameModalProps> = ({ onNameSet, onC
   return (
     <div className="modal-overlay">
       <div className="modal">
-        <h2>✏️ Змінити нік</h2>
+        <h2><PencilIcon size={18} /> Змінити нік</h2>
         <p>Введіть новий нік:</p>
         <form onSubmit={handleSubmit}>
           <input

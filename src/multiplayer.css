@@ -335,6 +335,78 @@
   margin-top: 10px;
 }
 
+.login-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.btn-discord {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 24px;
+  background: #5865F2;
+  border: 1px solid rgba(88, 101, 242, 0.5);
+  color: #fff;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-discord:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: #4752C4;
+  box-shadow: 0 8px 30px rgba(88, 101, 242, 0.3);
+}
+
+.btn-discord:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-discord svg {
+  flex-shrink: 0;
+}
+
+.btn-github {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 24px;
+  background: #24292e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-github:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: #2f363d;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.btn-github:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-github svg {
+  flex-shrink: 0;
+}
+
 /* ==================== Lobby List ==================== */
 .lobby-list-container {
   background: var(--glass-bg);

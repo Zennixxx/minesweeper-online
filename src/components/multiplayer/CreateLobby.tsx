@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { DifficultyLevel, DIFFICULTY_PRESETS } from '../../types';
 import { createLobby } from '../../multiplayerService';
 import { Lobby, GameMode, GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS } from '../../multiplayerTypes';
+import { PlusIcon, LockIcon } from '../../icons';
 
-const DIFFICULTY_EMOJI: Record<DifficultyLevel, string> = {
-  EASY: '🟢',
-  MEDIUM: '🟡',
-  HARD: '🔴'
+const DIFFICULTY_TEXT: Record<DifficultyLevel, string> = {
+  EASY: '●',
+  MEDIUM: '●',
+  HARD: '●'
 };
 
 const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
@@ -95,7 +96,7 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
   return (
     <div className="create-lobby-container">
       <div className="create-lobby-card">
-        <h2>➕ Створити нове лобі</h2>
+        <h2><PlusIcon size={18} /> Створити нове лобі</h2>
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -136,11 +137,11 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
               onChange={(e) => handleMaxPlayersChange(Number(e.target.value))}
               disabled={gameMode === GameMode.RACE}
             >
-              <option value={2}>👥 2 гравці</option>
-              <option value={3} disabled={gameMode === GameMode.RACE}>👥 3 гравці</option>
-              <option value={4} disabled={gameMode === GameMode.RACE}>👥 4 гравці</option>
-              <option value={5} disabled={gameMode === GameMode.RACE}>👥 5 гравців</option>
-              <option value={6} disabled={gameMode === GameMode.RACE}>👥 6 гравців</option>
+              <option value={2}>2 гравці</option>
+              <option value={3} disabled={gameMode === GameMode.RACE}>3 гравці</option>
+              <option value={4} disabled={gameMode === GameMode.RACE}>4 гравці</option>
+              <option value={5} disabled={gameMode === GameMode.RACE}>5 гравців</option>
+              <option value={6} disabled={gameMode === GameMode.RACE}>6 гравців</option>
             </select>
             {gameMode === GameMode.RACE && (
               <span className="form-hint">Режим «На швидкість» доступний тільки для 2 гравців</span>
@@ -154,7 +155,7 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
                 checked={usePassword}
                 onChange={(e) => setUsePassword(e.target.checked)}
               />
-              <span>🔒 Захистити паролем</span>
+              <span><LockIcon size={14} /> Захистити паролем</span>
             </label>
           </div>
 
@@ -196,7 +197,7 @@ export const CreateLobby: React.FC<CreateLobbyProps> = ({ onLobbyCreated, onCanc
                 const isDisabled = maxPlayers > 2 && key === 'EASY';
                 return (
                   <option key={key} value={key} disabled={isDisabled}>
-                    {DIFFICULTY_EMOJI[key]} {DIFFICULTY_LABELS[key]} ({preset.rows}x{preset.cols}, {preset.mines} мін)
+                    {DIFFICULTY_TEXT[key]} {DIFFICULTY_LABELS[key]} ({preset.rows}x{preset.cols}, {preset.mines} мін)
                     {isDisabled ? ' — недоступно для 3+ гравців' : ''}
                   </option>
                 );

@@ -4,6 +4,7 @@ import { getGame, makeRaceMove, leaveGame, leaveAsSpectator } from '../../multip
 import { getOrCreatePlayerId, client, DATABASE_ID, GAMES_COLLECTION_ID } from '../../lib/appwrite';
 import { Cell, CellState } from '../../types';
 import { GameBoard } from '../GameBoard';
+import { LightningIcon, StopwatchIcon, EyeIcon, CrownIcon, GamepadIcon, CheckCircleIcon, TargetIcon, TrophyIcon, HandshakeIcon, SadFaceIcon, DoorIcon } from '../../icons';
 
 interface RaceGameProps {
   game: MultiplayerGameState;
@@ -196,36 +197,36 @@ export const RaceGame: React.FC<RaceGameProps> = ({ game: initialGame, onGameEnd
     if (game.status !== MultiplayerGameStatus.FINISHED) return null;
 
     if (game.winnerId === 'draw') {
-      return '🤝 Нічия!';
+      return <><HandshakeIcon size={18} /> Нічия!</>;
     } else if (isSpectator) {
       const winnerName = game.winnerId === game.hostId ? game.hostName : game.guestName;
-      return `🏆 Переможець: ${winnerName}`;
+      return <><TrophyIcon size={18} /> Переможець: {winnerName}</>;
     } else if (game.winnerId === playerId) {
-      return '🏆 Ви перемогли!';
+      return <><TrophyIcon size={18} /> Ви перемогли!</>;
     } else {
-      return '😔 Ви програли!';
+      return <><SadFaceIcon size={18} /> Ви програли!</>;
     }
   };
 
   return (
     <div className="multiplayer-game-container race-game">
       <div className="game-header-mp">
-        <h2>⚡ Сапер - Змагання на швидкість</h2>
-        <div className="race-timer">⏱️ {formatTime(elapsedTime)}</div>
+        <h2><LightningIcon size={20} /> Сапер - Змагання на швидкість</h2>
+        <div className="race-timer"><StopwatchIcon size={16} /> {formatTime(elapsedTime)}</div>
         {isSpectator && (
-          <div className="spectator-badge">👁️ Ви спостерігаєте за грою</div>
+          <div className="spectator-badge"><EyeIcon size={14} /> Ви спостерігаєте за грою</div>
         )}
         {spectatorCount > 0 && (
-          <div className="spectator-count">👁️ Глядачів: {spectatorCount}</div>
+          <div className="spectator-count"><EyeIcon size={14} /> Глядачів: {spectatorCount}</div>
         )}
       </div>
 
       <div className="race-scoreboard">
         <div className={`race-player-card ${isHost ? 'me' : ''} ${game.hostFinished ? 'finished' : ''}`}>
           <div className="race-player-name">
-            👑 {game.hostName}
+            <CrownIcon size={16} /> {game.hostName}
             {game.hostId === playerId && <span className="me-badge">(Ви)</span>}
-            {game.hostFinished && <span className="finished-badge">✅</span>}
+            {game.hostFinished && <span className="finished-badge"><CheckCircleIcon size={16} /></span>}
           </div>
           <div className="race-player-score">Очки: <strong>{game.hostScore}</strong></div>
           <div className="race-progress-bar">
@@ -241,9 +242,9 @@ export const RaceGame: React.FC<RaceGameProps> = ({ game: initialGame, onGameEnd
 
         <div className={`race-player-card ${!isHost ? 'me' : ''} ${game.guestFinished ? 'finished' : ''}`}>
           <div className="race-player-name">
-            🎮 {game.guestName}
+            <GamepadIcon size={16} /> {game.guestName}
             {game.guestId === playerId && <span className="me-badge">(Ви)</span>}
-            {game.guestFinished && <span className="finished-badge">✅</span>}
+            {game.guestFinished && <span className="finished-badge"><CheckCircleIcon size={16} /></span>}
           </div>
           <div className="race-player-score">Очки: <strong>{game.guestScore}</strong></div>
           <div className="race-progress-bar">
@@ -258,19 +259,19 @@ export const RaceGame: React.FC<RaceGameProps> = ({ game: initialGame, onGameEnd
 
       {game.status === MultiplayerGameStatus.PLAYING && !isSpectator && (
         <div className="race-hint">
-          🎯 Натискайте на клітинки якомога швидше! Хто першим розмінує поле - той переможе!
+          <TargetIcon size={14} /> Натискайте на клітинки якомога швидше! Хто першим розмінує поле - той переможе!
         </div>
       )}
 
       {isSpectator && game.status === MultiplayerGameStatus.PLAYING && (
         <div className="turn-message spectator">
-          ⚡ Гравці змагаються на швидкість!
+          <LightningIcon size={14} /> Гравці змагаються на швидкість!
         </div>
       )}
 
       {opponentLeft && (
         <div className="game-over-message victory">
-          🏆 Суперник вийшов з гри! Ви перемогли!
+          <TrophyIcon size={18} /> Суперник вийшов з гри! Ви перемогли!
         </div>
       )}
 
@@ -278,7 +279,7 @@ export const RaceGame: React.FC<RaceGameProps> = ({ game: initialGame, onGameEnd
         <div className={`game-over-message ${isSpectator ? 'spectator-end' : game.winnerId === playerId ? 'victory' : game.winnerId === 'draw' ? 'draw' : 'defeat'}`}>
           {getWinnerMessage()}
           <div className="final-scores">
-            ⏱️ Час: {formatTime(elapsedTime)} | {game.hostName}: {game.hostScore} — {game.guestName}: {game.guestScore}
+            <StopwatchIcon size={14} /> Час: {formatTime(elapsedTime)} | {game.hostName}: {game.hostScore} — {game.guestName}: {game.guestScore}
           </div>
         </div>
       )}
@@ -307,7 +308,7 @@ export const RaceGame: React.FC<RaceGameProps> = ({ game: initialGame, onGameEnd
 
       <div className="game-actions">
         <button className="btn btn-danger" onClick={handleLeaveGame}>
-          {isSpectator ? '🚪 Покинути перегляд' : '🚪 Вийти з гри'}
+          {isSpectator ? <><DoorIcon size={14} /> Покинути перегляд</> : <><DoorIcon size={14} /> Вийти з гри</>}
         </button>
       </div>
     </div>

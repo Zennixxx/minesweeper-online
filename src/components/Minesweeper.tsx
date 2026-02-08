@@ -18,6 +18,7 @@ import {
 } from '../gameUtils';
 import { GameBoard } from './GameBoard';
 import { GameStatusPanel } from './GameStatusPanel';
+import { BombIcon } from '../icons';
 
 export const Minesweeper: React.FC = () => {
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
@@ -172,7 +173,7 @@ export const Minesweeper: React.FC = () => {
 
   return (
     <div className="minesweeper">
-      <h1 className="game-title">💣 Сапер</h1>
+      <h1 className="game-title"><BombIcon size={28} /> Сапер</h1>
       
       <GameStatusPanel
         status={gameStatus}
