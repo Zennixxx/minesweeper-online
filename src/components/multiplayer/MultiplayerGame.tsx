@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MultiplayerGameState, MultiplayerGameStatus, deserializeBoard, deserializeConfig, deserializeGamePlayers, deserializeSpectators } from '../../multiplayerTypes';
-import { getGame, makeMove, leaveGame, leaveAsSpectator } from '../../multiplayerService';
+import { getGame, makeMove, leaveGame, leaveAsSpectator } from '../../multiplayerServiceSecure';
 import { getOrCreatePlayerId, client, DATABASE_ID, GAMES_COLLECTION_ID } from '../../lib/appwrite';
 import { Cell, CellState } from '../../types';
 import { GameBoard } from '../GameBoard';

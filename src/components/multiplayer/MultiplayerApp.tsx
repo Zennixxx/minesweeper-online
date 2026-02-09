@@ -7,7 +7,7 @@ import { LobbyRoom } from './LobbyRoom';
 import { MultiplayerGame } from './MultiplayerGame';
 import { RaceGame } from './RaceGame';
 import { Lobby, MultiplayerGameState, MultiplayerGameStatus, GameMode } from '../../multiplayerTypes';
-import { getGame, getLobby } from '../../multiplayerService';
+import { getGame, getLobby } from '../../multiplayerServiceSecure';
 import { saveGameSession, clearGameSession } from '../../lib/appwrite';
 import { useAuth } from '../../lib/AuthContext';
 import { BombIcon, PencilIcon, DoorIcon, LockIcon } from '../../icons';

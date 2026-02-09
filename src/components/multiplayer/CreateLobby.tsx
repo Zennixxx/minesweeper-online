@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DifficultyLevel, DIFFICULTY_PRESETS } from '../../types';
-import { createLobby } from '../../multiplayerService';
+import { createLobby } from '../../multiplayerServiceSecure';
 import { Lobby, GameMode, GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS } from '../../multiplayerTypes';
 import { PlusIcon, LockIcon } from '../../icons';
 

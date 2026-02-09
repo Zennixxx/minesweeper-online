@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Lobby, LobbyStatus, MultiplayerGameState, MultiplayerGameStatus, deserializeLobbyPlayers, GameMode, GAME_MODE_LABELS } from '../../multiplayerTypes';
-import { getLobbies, joinLobby, deleteLobby, getGame, joinAsSpectator } from '../../multiplayerService';
+import { getLobbies, joinLobby, deleteLobby, getGame, joinAsSpectator } from '../../multiplayerServiceSecure';
 import { getOrCreatePlayerId } from '../../lib/appwrite';
 import { client, DATABASE_ID, LOBBIES_COLLECTION_ID } from '../../lib/appwrite';
 import { HourglassIcon, CheckCircleIcon, GamepadIcon, EasyDot, MediumDot, HardDot, RefreshIcon, PlusIcon, DesertIcon, LockIcon, UnlockIcon, TrashIcon, InboxIcon, DoorIcon, EyeIcon } from '../../icons';
