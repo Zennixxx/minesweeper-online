@@ -146,7 +146,12 @@ export const serializeBoard = (board: Cell[][]): string => {
 
 // Deserialize board from storage
 export const deserializeBoard = (boardStr: string): Cell[][] => {
-  return JSON.parse(boardStr);
+  if (!boardStr) return [];
+  try {
+    return JSON.parse(boardStr);
+  } catch {
+    return [];
+  }
 };
 
 // Serialize config for storage
@@ -156,7 +161,12 @@ export const serializeConfig = (config: GameConfig): string => {
 
 // Deserialize config from storage
 export const deserializeConfig = (configStr: string): GameConfig => {
-  return JSON.parse(configStr);
+  if (!configStr) return { rows: 9, cols: 9, mines: 10 };
+  try {
+    return JSON.parse(configStr);
+  } catch {
+    return { rows: 9, cols: 9, mines: 10 };
+  }
 };
 
 // Calculate score for revealing a cell

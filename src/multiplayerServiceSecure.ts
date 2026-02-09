@@ -128,8 +128,9 @@ export const deleteLobby = async (lobbyId: string): Promise<void> => {
 export const startGame = async (lobbyId: string): Promise<MultiplayerGameState> => {
   const response = await callFunction('/game/start', { lobbyId });
 
-  // The response contains a SAFE board (no mine positions)
-  return response as unknown as MultiplayerGameState;
+  // Server returns { gameId, ... } — reload full game document from DB
+  // to get proper $id, lobbyId, and all fields in the correct format
+  return await getGame(response.gameId);
 };
 
 // Get game by ID (read-only — NOTE: board field contains mines on server,
@@ -149,13 +150,14 @@ export const makeMove = async (
   row: number,
   col: number
 ): Promise<MultiplayerGameState> => {
-  const response = await callFunction('/game/move', {
+  await callFunction('/game/move', {
     gameId,
     row,
     col,
   });
 
-  return response as unknown as MultiplayerGameState;
+  // Reload from DB to get consistent MultiplayerGameState
+  return await getGame(gameId);
 };
 
 // Make a move in race mode (through server function)
@@ -164,13 +166,14 @@ export const makeRaceMove = async (
   row: number,
   col: number
 ): Promise<MultiplayerGameState> => {
-  const response = await callFunction('/game/race-move', {
+  await callFunction('/game/race-move', {
     gameId,
     row,
     col,
   });
 
-  return response as unknown as MultiplayerGameState;
+  // Reload from DB to get consistent MultiplayerGameState
+  return await getGame(gameId);
 };
 
 // Leave game / forfeit (through server function)
