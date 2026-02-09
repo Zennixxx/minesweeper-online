@@ -31,29 +31,21 @@ import { Functions, ExecutionMethod } from 'appwrite';
 // Initialize Functions service
 const functions = new Functions(client);
 
-// ── Function IDs (set these to your actual Appwrite Function IDs) ──
-const FUNCTION_IDS = {
-  LOBBY_CREATE: 'lobby-create',
-  LOBBY_JOIN: 'lobby-join',
-  LOBBY_LEAVE: 'lobby-leave',
-  GAME_START: 'game-start',
-  GAME_MAKE_MOVE: 'game-make-move',
-  GAME_MAKE_RACE_MOVE: 'game-make-race-move',
-  GAME_LEAVE: 'game-leave',
-};
+// Single function ID — all routes go through one function
+const FUNCTION_ID = 'minesweeper-api';
 
-// Helper to call an Appwrite Function
-async function callFunction<T = any>(functionId: string, data: Record<string, any>): Promise<T> {
+// Helper to call an Appwrite Function with path-based routing
+async function callFunction<T = any>(path: string, data: Record<string, any>): Promise<T> {
   const execution = await functions.createExecution(
-    functionId,
+    FUNCTION_ID,
     JSON.stringify(data),
     false,      // async = false (wait for result)
-    '/',        // path
+    path,       // path-based routing
     ExecutionMethod.POST,
   );
 
   if (execution.status === 'failed') {
-    throw new Error(`Function ${functionId} failed: ${execution.errors}`);
+    throw new Error(`Function ${path} failed: ${execution.errors}`);
   }
 
   const response = JSON.parse(execution.responseBody);
@@ -74,7 +66,7 @@ export const createLobby = async (
   maxPlayers: number = 2,
   gameMode: string = GameMode.CLASSIC
 ): Promise<Lobby> => {
-  const response = await callFunction(FUNCTION_IDS.LOBBY_CREATE, {
+  const response = await callFunction('/lobby/create', {
     name,
     password,
     difficulty,
@@ -112,7 +104,7 @@ export const getLobby = async (lobbyId: string): Promise<Lobby> => {
 
 // Join a lobby (through server function)
 export const joinLobby = async (lobbyId: string, password: string): Promise<Lobby> => {
-  const response = await callFunction(FUNCTION_IDS.LOBBY_JOIN, {
+  const response = await callFunction('/lobby/join', {
     lobbyId,
     password,
   });
@@ -122,7 +114,7 @@ export const joinLobby = async (lobbyId: string, password: string): Promise<Lobb
 
 // Leave lobby (through server function)
 export const leaveLobby = async (lobbyId: string): Promise<void> => {
-  await callFunction(FUNCTION_IDS.LOBBY_LEAVE, { lobbyId });
+  await callFunction('/lobby/leave', { lobbyId });
 };
 
 // Delete lobby (host can directly delete thanks to document-level permissions)
@@ -134,7 +126,7 @@ export const deleteLobby = async (lobbyId: string): Promise<void> => {
 
 // Start a new game (through server function — board generated server-side)
 export const startGame = async (lobbyId: string): Promise<MultiplayerGameState> => {
-  const response = await callFunction(FUNCTION_IDS.GAME_START, { lobbyId });
+  const response = await callFunction('/game/start', { lobbyId });
 
   // The response contains a SAFE board (no mine positions)
   return response as unknown as MultiplayerGameState;
@@ -157,7 +149,7 @@ export const makeMove = async (
   row: number,
   col: number
 ): Promise<MultiplayerGameState> => {
-  const response = await callFunction(FUNCTION_IDS.GAME_MAKE_MOVE, {
+  const response = await callFunction('/game/move', {
     gameId,
     row,
     col,
@@ -172,7 +164,7 @@ export const makeRaceMove = async (
   row: number,
   col: number
 ): Promise<MultiplayerGameState> => {
-  const response = await callFunction(FUNCTION_IDS.GAME_MAKE_RACE_MOVE, {
+  const response = await callFunction('/game/race-move', {
     gameId,
     row,
     col,
@@ -183,7 +175,7 @@ export const makeRaceMove = async (
 
 // Leave game / forfeit (through server function)
 export const leaveGame = async (gameId: string): Promise<void> => {
-  await callFunction(FUNCTION_IDS.GAME_LEAVE, { gameId });
+  await callFunction('/game/leave', { gameId });
 };
 
 // Delete game and lobby completely
