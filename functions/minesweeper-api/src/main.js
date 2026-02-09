@@ -60,6 +60,10 @@ export default async (context) => {
   const { req, res, log, error } = context;
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
 
+  log(`[ROUTER] ${req.method} ${path}`);
+  log(`[ROUTER] userId: ${req.headers['x-appwrite-user-id'] || 'none'}`);
+  log(`[ROUTER] body: ${typeof req.body === 'string' ? req.body : JSON.stringify(req.body)}`);
+
   // Cleanup can be triggered by CRON (no auth needed)
   if (path === '/cleanup') {
     return handleCleanup(context);
@@ -68,39 +72,54 @@ export default async (context) => {
   // All other routes require authentication
   const userId = req.headers['x-appwrite-user-id'];
   if (!userId) {
+    log(`[AUTH] Unauthorized — no x-appwrite-user-id header`);
     return res.json({ ok: false, error: 'Unauthorized' }, 401);
   }
 
   const body = parseBody(req);
   if (body === null) {
+    log(`[PARSE] Invalid JSON body`);
     return res.json({ ok: false, error: 'Invalid JSON body' }, 400);
   }
 
+  log(`[ROUTE] → ${path} | user: ${userId} | data: ${JSON.stringify(body)}`);
+
+  let result;
   switch (path) {
     case '/lobby/create':
-      return handleLobbyCreate(context, userId, body);
+      result = await handleLobbyCreate(context, userId, body);
+      break;
     case '/lobby/join':
-      return handleLobbyJoin(context, userId, body);
+      result = await handleLobbyJoin(context, userId, body);
+      break;
     case '/lobby/leave':
-      return handleLobbyLeave(context, userId, body);
+      result = await handleLobbyLeave(context, userId, body);
+      break;
     case '/game/start':
-      return handleGameStart(context, userId, body);
+      result = await handleGameStart(context, userId, body);
+      break;
     case '/game/move':
-      return handleGameMove(context, userId, body);
+      result = await handleGameMove(context, userId, body);
+      break;
     case '/game/race-move':
-      return handleGameRaceMove(context, userId, body);
+      result = await handleGameRaceMove(context, userId, body);
+      break;
     case '/game/leave':
-      return handleGameLeave(context, userId, body);
+      result = await handleGameLeave(context, userId, body);
+      break;
     default:
-      return res.json({ ok: false, error: `Unknown route: ${path}` }, 404);
+      log(`[ROUTE] Unknown route: ${path}`);
+      result = res.json({ ok: false, error: `Unknown route: ${path}` }, 404);
   }
+  return result;
 };
 
 // ══════════════════════════════════════
 //  LOBBY: CREATE
 // ══════════════════════════════════════
-async function handleLobbyCreate({ res, error: logError }, userId, body) {
+async function handleLobbyCreate({ res, log, error: logError }, userId, body) {
   const { name, password, difficulty, maxPlayers, gameMode } = body;
+  log(`[lobby/create] user=${userId} name="${name}" difficulty=${difficulty} mode=${gameMode} maxPlayers=${maxPlayers} hasPassword=${!!password}`);
 
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50) {
     return res.json({ ok: false, error: 'Name must be 1-50 characters' }, 400);
@@ -172,6 +191,7 @@ async function handleLobbyCreate({ res, error: logError }, userId, body) {
       Permission.delete(Role.user(userId)),
     ]);
 
+    log(`[lobby/create] ✅ Created lobby ${lobbyDoc.$id} by ${playerName}`);
     return res.json({
       ok: true,
       lobby: {
@@ -185,6 +205,7 @@ async function handleLobbyCreate({ res, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`lobby-create error: ${e.message}`);
+    log(`[lobby/create] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -192,8 +213,9 @@ async function handleLobbyCreate({ res, error: logError }, userId, body) {
 // ══════════════════════════════════════
 //  LOBBY: JOIN
 // ══════════════════════════════════════
-async function handleLobbyJoin({ res, error: logError }, userId, body) {
+async function handleLobbyJoin({ res, log, error: logError }, userId, body) {
   const { lobbyId, password } = body;
+  log(`[lobby/join] user=${userId} lobbyId=${lobbyId} hasPassword=${!!password}`);
   if (!lobbyId) return res.json({ ok: false, error: 'Missing lobbyId' }, 400);
 
   const { db, users, DB, LOBBIES } = initAppwrite();
@@ -205,9 +227,12 @@ async function handleLobbyJoin({ res, error: logError }, userId, body) {
     if (lobby.password && lobby.password.length > 0) {
       const salt = lobby.passwordSalt || '';
       const inputHash = crypto.createHash('sha256').update((password || '') + salt).digest('hex');
+      log(`[lobby/join] Password check: stored=${lobby.password.substring(0,8)}... input=${inputHash.substring(0,8)}... salt=${salt.substring(0,8)}...`);
       if (inputHash !== lobby.password) {
+        log(`[lobby/join] ❌ Password mismatch`);
         return res.json({ ok: false, error: 'Incorrect password' }, 403);
       }
+      log(`[lobby/join] ✅ Password correct`);
     }
 
     const players = JSON.parse(lobby.players || '[]');
@@ -258,6 +283,7 @@ async function handleLobbyJoin({ res, error: logError }, userId, body) {
 
     await db.updateDocument(DB, LOBBIES, lobbyId, updateData);
 
+    log(`[lobby/join] ✅ ${playerName} joined lobby ${lobbyId} (${players.length}/${maxPlayers})`);
     return res.json({
       ok: true,
       lobby: {
@@ -271,6 +297,7 @@ async function handleLobbyJoin({ res, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`lobby-join error: ${e.message}`);
+    log(`[lobby/join] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -278,8 +305,9 @@ async function handleLobbyJoin({ res, error: logError }, userId, body) {
 // ══════════════════════════════════════
 //  LOBBY: LEAVE
 // ══════════════════════════════════════
-async function handleLobbyLeave({ res, error: logError }, userId, body) {
+async function handleLobbyLeave({ res, log, error: logError }, userId, body) {
   const { lobbyId } = body;
+  log(`[lobby/leave] user=${userId} lobbyId=${lobbyId}`);
   if (!lobbyId) return res.json({ ok: false, error: 'Missing lobbyId' }, 400);
 
   const { db, DB, LOBBIES } = initAppwrite();
@@ -296,6 +324,7 @@ async function handleLobbyLeave({ res, error: logError }, userId, body) {
 
     if (isHost) {
       await db.deleteDocument(DB, LOBBIES, lobbyId);
+      log(`[lobby/leave] ✅ Host deleted lobby ${lobbyId}`);
       return res.json({ ok: true, action: 'deleted' });
     }
 
@@ -307,9 +336,11 @@ async function handleLobbyLeave({ res, error: logError }, userId, body) {
     }
 
     await db.updateDocument(DB, LOBBIES, lobbyId, updateData);
+    log(`[lobby/leave] ✅ Player ${userId} left lobby ${lobbyId}`);
     return res.json({ ok: true, action: 'left' });
   } catch (e) {
     logError(`lobby-leave error: ${e.message}`);
+    log(`[lobby/leave] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -317,8 +348,9 @@ async function handleLobbyLeave({ res, error: logError }, userId, body) {
 // ══════════════════════════════════════
 //  GAME: START
 // ══════════════════════════════════════
-async function handleGameStart({ res, error: logError }, userId, body) {
+async function handleGameStart({ res, log, error: logError }, userId, body) {
   const { lobbyId } = body;
+  log(`[game/start] user=${userId} lobbyId=${lobbyId}`);
   if (!lobbyId) return res.json({ ok: false, error: 'Missing lobbyId' }, 400);
 
   const { db, DB, LOBBIES, GAMES } = initAppwrite();
@@ -379,6 +411,7 @@ async function handleGameStart({ res, error: logError }, userId, body) {
       status: LobbyStatus.IN_GAME,
     });
 
+    log(`[game/start] ✅ Game ${gameDoc.$id} started (mode=${gameMode}, ${config.rows}x${config.cols}, ${config.mines} mines)`);
     return res.json({
       ok: true, gameId: gameDoc.$id,
       board: buildSafeBoard(board, false),
@@ -388,6 +421,7 @@ async function handleGameStart({ res, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`game-start error: ${e.message}`);
+    log(`[game/start] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -395,8 +429,9 @@ async function handleGameStart({ res, error: logError }, userId, body) {
 // ══════════════════════════════════════
 //  GAME: MOVE (classic turn-based)
 // ══════════════════════════════════════
-async function handleGameMove({ res, error: logError }, userId, body) {
+async function handleGameMove({ res, log, error: logError }, userId, body) {
   const { gameId, row, col } = body;
+  log(`[game/move] user=${userId} gameId=${gameId} row=${row} col=${col}`);
   if (!gameId || row == null || col == null) {
     return res.json({ ok: false, error: 'Missing gameId, row, or col' }, 400);
   }
@@ -494,6 +529,7 @@ async function handleGameMove({ res, error: logError }, userId, body) {
       try { await db.deleteDocument(DB, LOBBIES, game.lobbyId); } catch { /* ok */ }
     }
 
+    log(`[game/move] ✅ cell(${row},${col}) isMine=${cell.isMine} score=${gamePlayers[currentPlayerIndex].score} gameOver=${gameOver}`);
     return res.json({
       ok: true,
       board: buildSafeBoard(board, gameOver),
@@ -505,6 +541,7 @@ async function handleGameMove({ res, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`game-move error: ${e.message}`);
+    log(`[game/move] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -512,8 +549,9 @@ async function handleGameMove({ res, error: logError }, userId, body) {
 // ══════════════════════════════════════
 //  GAME: RACE MOVE (simultaneous)
 // ══════════════════════════════════════
-async function handleGameRaceMove({ res, error: logError }, userId, body) {
+async function handleGameRaceMove({ res, log, error: logError }, userId, body) {
   const { gameId, row, col } = body;
+  log(`[game/race-move] user=${userId} gameId=${gameId} row=${row} col=${col}`);
   if (!gameId || row == null || col == null) {
     return res.json({ ok: false, error: 'Missing gameId, row, or col' }, 400);
   }
@@ -616,6 +654,7 @@ async function handleGameRaceMove({ res, error: logError }, userId, body) {
 
     const safeBoard = buildSafeBoardForRace(masterBoard, revealed, finished || updateData.status === GameStatus.FINISHED);
 
+    log(`[game/race-move] ✅ cell(${row},${col}) score=${currentScore} finished=${finished}`);
     return res.json({
       ok: true, board: safeBoard, revealed: Array.from(revealed),
       score: currentScore, finished,
@@ -625,6 +664,7 @@ async function handleGameRaceMove({ res, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`game-race-move error: ${e.message}`);
+    log(`[game/race-move] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -632,8 +672,9 @@ async function handleGameRaceMove({ res, error: logError }, userId, body) {
 // ══════════════════════════════════════
 //  GAME: LEAVE (forfeit)
 // ══════════════════════════════════════
-async function handleGameLeave({ res, error: logError }, userId, body) {
+async function handleGameLeave({ res, log, error: logError }, userId, body) {
   const { gameId } = body;
+  log(`[game/leave] user=${userId} gameId=${gameId}`);
   if (!gameId) return res.json({ ok: false, error: 'Missing gameId' }, 400);
 
   const { db, DB, GAMES, LOBBIES } = initAppwrite();
@@ -663,9 +704,11 @@ async function handleGameLeave({ res, error: logError }, userId, body) {
     await db.updateDocument(DB, GAMES, gameId, { status: GameStatus.FINISHED, winnerId });
     try { await db.deleteDocument(DB, LOBBIES, game.lobbyId); } catch { /* ok */ }
 
+    log(`[game/leave] ✅ Player ${userId} forfeited game ${gameId}, winner=${winnerId}`);
     return res.json({ ok: true, winnerId });
   } catch (e) {
     logError(`game-leave error: ${e.message}`);
+    log(`[game/leave] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
