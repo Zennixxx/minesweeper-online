@@ -32,7 +32,7 @@ import { Functions, ExecutionMethod } from 'appwrite';
 const functions = new Functions(client);
 
 // Single function ID — all routes go through one function
-const FUNCTION_ID = '6989271797c66848e838';
+const FUNCTION_ID = '69892683001dddbac8ac';
 
 // Helper to call an Appwrite Function with path-based routing
 async function callFunction<T = any>(path: string, data: Record<string, any>): Promise<T> {
