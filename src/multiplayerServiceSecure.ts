@@ -1,11 +1,12 @@
 /**
  * multiplayerServiceSecure.ts
  * 
- * Drop-in replacement for multiplayerService.ts that routes all write operations
- * through Appwrite Functions for server-side validation.
+ * All write operations go through Appwrite Functions for server-side validation.
+ * Read operations use client SDK since the games collection only contains safe data
+ * (mine positions are stored in a separate private collection).
  * 
- * Read operations (getLobbies, getLobby, getGame) still use client SDK directly
- * since they only need read access.
+ * Spectator operations also go through functions to avoid needing
+ * client-side update permissions on the games collection.
  */
 
 import {
@@ -13,16 +14,14 @@ import {
   DATABASE_ID,
   LOBBIES_COLLECTION_ID,
   GAMES_COLLECTION_ID,
+  FUNCTION_ID,
   Query,
-  getOrCreatePlayerId,
 } from './lib/appwrite';
 import {
   Lobby,
   LobbyStatus,
   MultiplayerGameState,
   GameMode,
-  deserializeSpectators,
-  serializeSpectators,
 } from './multiplayerTypes';
 import { DifficultyLevel } from './types';
 import { client } from './lib/appwrite';
@@ -30,9 +29,6 @@ import { Functions, ExecutionMethod } from 'appwrite';
 
 // Initialize Functions service
 const functions = new Functions(client);
-
-// Single function ID — all routes go through one function
-const FUNCTION_ID = '69892683001dddbac8ac';
 
 // Helper to call an Appwrite Function with path-based routing
 async function callFunction<T = any>(path: string, data: Record<string, any>): Promise<T> {
@@ -128,13 +124,11 @@ export const deleteLobby = async (lobbyId: string): Promise<void> => {
 export const startGame = async (lobbyId: string): Promise<MultiplayerGameState> => {
   const response = await callFunction('/game/start', { lobbyId });
 
-  // Server returns { gameId, ... } — reload full game document from DB
-  // to get proper $id, lobbyId, and all fields in the correct format
+  // Reload full game document from DB (contains only SAFE board, no mines)
   return await getGame(response.gameId);
 };
 
-// Get game by ID (read-only — NOTE: board field contains mines on server,
-// but with proper permissions, clients won't see the raw board)
+// Get game by ID (read-only — SAFE: games collection only contains sanitized board)
 export const getGame = async (gameId: string): Promise<MultiplayerGameState> => {
   const response = await databases.getDocument(
     DATABASE_ID,
@@ -198,42 +192,15 @@ export const finishGame = async (_lobbyId: string): Promise<void> => {
 };
 
 // ==================== SPECTATOR FUNCTIONS ====================
-// Spectator functions can remain client-side since they only modify the spectators array
-// and don't affect game integrity
+// Routed through server function — no client-side write permissions needed
 
 export const joinAsSpectator = async (gameId: string): Promise<MultiplayerGameState> => {
-  const game = await getGame(gameId);
-  const playerId = getOrCreatePlayerId();
-  const spectators = deserializeSpectators(game.spectators);
-
-  if (spectators.includes(playerId)) return game;
-
-  spectators.push(playerId);
-
-  const response = await databases.updateDocument(
-    DATABASE_ID,
-    GAMES_COLLECTION_ID,
-    gameId,
-    { spectators: serializeSpectators(spectators) }
-  );
-
-  return response as unknown as MultiplayerGameState;
+  await callFunction('/game/spectator-join', { gameId });
+  return await getGame(gameId);
 };
 
 export const leaveAsSpectator = async (gameId: string): Promise<void> => {
   try {
-    const game = await getGame(gameId);
-    const playerId = getOrCreatePlayerId();
-    const spectators = deserializeSpectators(game.spectators);
-    const newSpectators = spectators.filter(id => id !== playerId);
-
-    if (newSpectators.length !== spectators.length) {
-      await databases.updateDocument(
-        DATABASE_ID,
-        GAMES_COLLECTION_ID,
-        gameId,
-        { spectators: serializeSpectators(newSpectators) }
-      );
-    }
+    await callFunction('/game/spectator-leave', { gameId });
   } catch { /* ignore */ }
 };

@@ -2,7 +2,12 @@ import { Client, Databases, ID, Query, Permission, Role, Users } from 'node-appw
 import * as crypto from 'crypto';
 
 // ════════════════════════════════════════════════════════════════
-//  Minesweeper Online — Unified Appwrite Function
+//  Minesweeper Online — Unified Appwrite Function (SECURE)
+//
+//  SECURITY: Real board with mines is stored in a PRIVATE collection
+//  (game_boards) that clients cannot read. The public `games` collection
+//  only ever contains a sanitized "safe board" (mines hidden).
+//
 //  Routes by req.path:
 //    POST /lobby/create
 //    POST /lobby/join
@@ -11,6 +16,8 @@ import * as crypto from 'crypto';
 //    POST /game/move
 //    POST /game/race-move
 //    POST /game/leave
+//    POST /game/spectator-join
+//    POST /game/spectator-leave
 //    POST /cleanup          (also triggered by CRON schedule)
 // ════════════════════════════════════════════════════════════════
 
@@ -42,6 +49,8 @@ function initAppwrite() {
     DB: process.env.DATABASE_ID || 'minesweeper_db',
     LOBBIES: process.env.LOBBIES_COLLECTION_ID || 'lobbies',
     GAMES: process.env.GAMES_COLLECTION_ID || 'games',
+    // Private collection — NO user read/write permissions!
+    GAME_BOARDS: process.env.GAME_BOARDS_COLLECTION_ID || 'game_boards',
   };
 }
 
@@ -62,7 +71,6 @@ export default async (context) => {
 
   log(`[ROUTER] ${req.method} ${path}`);
   log(`[ROUTER] userId: ${req.headers['x-appwrite-user-id'] || 'none'}`);
-  log(`[ROUTER] body: ${typeof req.body === 'string' ? req.body : JSON.stringify(req.body)}`);
 
   // Cleanup can be triggered by CRON (no auth needed)
   if (path === '/cleanup') {
@@ -82,7 +90,7 @@ export default async (context) => {
     return res.json({ ok: false, error: 'Invalid JSON body' }, 400);
   }
 
-  log(`[ROUTE] → ${path} | user: ${userId} | data: ${JSON.stringify(body)}`);
+  log(`[ROUTE] → ${path} | user: ${userId}`);
 
   let result;
   switch (path) {
@@ -107,6 +115,12 @@ export default async (context) => {
     case '/game/leave':
       result = await handleGameLeave(context, userId, body);
       break;
+    case '/game/spectator-join':
+      result = await handleSpectatorJoin(context, userId, body);
+      break;
+    case '/game/spectator-leave':
+      result = await handleSpectatorLeave(context, userId, body);
+      break;
     default:
       log(`[ROUTE] Unknown route: ${path}`);
       result = res.json({ ok: false, error: `Unknown route: ${path}` }, 404);
@@ -119,7 +133,7 @@ export default async (context) => {
 // ══════════════════════════════════════
 async function handleLobbyCreate({ res, log, error: logError }, userId, body) {
   const { name, password, difficulty, maxPlayers, gameMode } = body;
-  log(`[lobby/create] user=${userId} name="${name}" difficulty=${difficulty} mode=${gameMode} maxPlayers=${maxPlayers} hasPassword=${!!password}`);
+  log(`[lobby/create] user=${userId} name="${name}" difficulty=${difficulty} mode=${gameMode} maxPlayers=${maxPlayers}`);
 
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50) {
     return res.json({ ok: false, error: 'Name must be 1-50 characters' }, 400);
@@ -205,7 +219,6 @@ async function handleLobbyCreate({ res, log, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`lobby-create error: ${e.message}`);
-    log(`[lobby/create] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -215,7 +228,7 @@ async function handleLobbyCreate({ res, log, error: logError }, userId, body) {
 // ══════════════════════════════════════
 async function handleLobbyJoin({ res, log, error: logError }, userId, body) {
   const { lobbyId, password } = body;
-  log(`[lobby/join] user=${userId} lobbyId=${lobbyId} hasPassword=${!!password}`);
+  log(`[lobby/join] user=${userId} lobbyId=${lobbyId}`);
   if (!lobbyId) return res.json({ ok: false, error: 'Missing lobbyId' }, 400);
 
   const { db, users, DB, LOBBIES } = initAppwrite();
@@ -227,12 +240,10 @@ async function handleLobbyJoin({ res, log, error: logError }, userId, body) {
     if (lobby.password && lobby.password.length > 0) {
       const salt = lobby.passwordSalt || '';
       const inputHash = crypto.createHash('sha256').update((password || '') + salt).digest('hex');
-      log(`[lobby/join] Password check: stored=${lobby.password.substring(0,8)}... input=${inputHash.substring(0,8)}... salt=${salt.substring(0,8)}...`);
       if (inputHash !== lobby.password) {
         log(`[lobby/join] ❌ Password mismatch`);
         return res.json({ ok: false, error: 'Incorrect password' }, 403);
       }
-      log(`[lobby/join] ✅ Password correct`);
     }
 
     const players = JSON.parse(lobby.players || '[]');
@@ -297,7 +308,6 @@ async function handleLobbyJoin({ res, log, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`lobby-join error: ${e.message}`);
-    log(`[lobby/join] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -340,20 +350,21 @@ async function handleLobbyLeave({ res, log, error: logError }, userId, body) {
     return res.json({ ok: true, action: 'left' });
   } catch (e) {
     logError(`lobby-leave error: ${e.message}`);
-    log(`[lobby/leave] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
 
 // ══════════════════════════════════════
 //  GAME: START
+//  Real board → private game_boards collection
+//  Safe board → public games collection
 // ══════════════════════════════════════
 async function handleGameStart({ res, log, error: logError }, userId, body) {
   const { lobbyId } = body;
   log(`[game/start] user=${userId} lobbyId=${lobbyId}`);
   if (!lobbyId) return res.json({ ok: false, error: 'Missing lobbyId' }, 400);
 
-  const { db, DB, LOBBIES, GAMES } = initAppwrite();
+  const { db, DB, LOBBIES, GAMES, GAME_BOARDS } = initAppwrite();
 
   try {
     const lobby = await db.getDocument(DB, LOBBIES, lobbyId);
@@ -380,9 +391,13 @@ async function handleGameStart({ res, log, error: logError }, userId, body) {
     const turnOrder = [lobby.hostId, ...lobbyPlayers.filter(p => p.id !== lobby.hostId).map(p => p.id)];
     const gameMode = lobby.gameMode || GameMode.CLASSIC;
 
+    // Safe board for clients — mines hidden
+    const safeBoard = buildSafeBoard(board, false);
+
     const gameData = {
       lobbyId,
-      board: JSON.stringify(board),
+      // PUBLIC board field — only sanitized data (no mine positions)
+      board: JSON.stringify(safeBoard),
       config: JSON.stringify(config),
       players: JSON.stringify(gamePlayers),
       turnOrder: JSON.stringify(turnOrder),
@@ -398,13 +413,19 @@ async function handleGameStart({ res, log, error: logError }, userId, body) {
       gameMode,
       hostBoard: '[]', guestBoard: '[]',
       startTime: new Date().toISOString(),
-      hostFinished: false, guestFinished: false
+      hostFinished: false, guestFinished: false,
+      spectators: '[]'
     };
 
     const gameDoc = await db.createDocument(DB, GAMES, ID.unique(), gameData, [
       Permission.read(Role.users()),
       Permission.delete(Role.user(lobby.hostId)),
     ]);
+
+    // Store the REAL board in the PRIVATE collection (no user permissions!)
+    await db.createDocument(DB, GAME_BOARDS, gameDoc.$id, {
+      board: JSON.stringify(board),
+    });
 
     await db.updateDocument(DB, LOBBIES, lobbyId, {
       gameId: gameDoc.$id,
@@ -414,14 +435,13 @@ async function handleGameStart({ res, log, error: logError }, userId, body) {
     log(`[game/start] ✅ Game ${gameDoc.$id} started (mode=${gameMode}, ${config.rows}x${config.cols}, ${config.mines} mines)`);
     return res.json({
       ok: true, gameId: gameDoc.$id,
-      board: buildSafeBoard(board, false),
+      board: safeBoard,
       config, players: gamePlayers, turnOrder,
       currentTurn: gameData.currentTurn,
       status: gameData.status, gameMode
     });
   } catch (e) {
     logError(`game-start error: ${e.message}`);
-    log(`[game/start] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -436,7 +456,7 @@ async function handleGameMove({ res, log, error: logError }, userId, body) {
     return res.json({ ok: false, error: 'Missing gameId, row, or col' }, 400);
   }
 
-  const { db, DB, GAMES, LOBBIES } = initAppwrite();
+  const { db, DB, GAMES, LOBBIES, GAME_BOARDS } = initAppwrite();
 
   try {
     const game = await db.getDocument(DB, GAMES, gameId);
@@ -457,7 +477,9 @@ async function handleGameMove({ res, log, error: logError }, userId, body) {
       return res.json({ ok: false, error: 'You are not a player in this game' }, 403);
     }
 
-    const board = JSON.parse(game.board);
+    // Read the REAL board from private collection
+    const boardDoc = await db.getDocument(DB, GAME_BOARDS, gameId);
+    const board = JSON.parse(boardDoc.board);
     const rows = board.length;
     const cols = board[0].length;
 
@@ -515,8 +537,17 @@ async function handleGameMove({ res, log, error: logError }, userId, body) {
     const hostScore = gamePlayers.find(p => p.id === game.hostId)?.score || 0;
     const guestScore = gamePlayers.find(p => p.id === game.guestId)?.score || 0;
 
-    await db.updateDocument(DB, GAMES, gameId, {
+    // Build safe board for clients
+    const safeBoard = buildSafeBoard(board, gameOver);
+
+    // Update PRIVATE collection with real board
+    await db.updateDocument(DB, GAME_BOARDS, gameId, {
       board: JSON.stringify(board),
+    });
+
+    // Update PUBLIC games collection with SAFE board only
+    await db.updateDocument(DB, GAMES, gameId, {
+      board: JSON.stringify(safeBoard),
       players: JSON.stringify(gamePlayers),
       currentTurnIndex: nextTurnIndex,
       hostScore, guestScore,
@@ -527,12 +558,14 @@ async function handleGameMove({ res, log, error: logError }, userId, body) {
 
     if (gameOver) {
       try { await db.deleteDocument(DB, LOBBIES, game.lobbyId); } catch { /* ok */ }
+      // Clean up private board
+      try { await db.deleteDocument(DB, GAME_BOARDS, gameId); } catch { /* ok */ }
     }
 
     log(`[game/move] ✅ cell(${row},${col}) isMine=${cell.isMine} score=${gamePlayers[currentPlayerIndex].score} gameOver=${gameOver}`);
     return res.json({
       ok: true,
-      board: buildSafeBoard(board, gameOver),
+      board: safeBoard,
       players: gamePlayers, currentTurn: nextTurn,
       currentTurnIndex: nextTurnIndex,
       status, winnerId, minesRevealed: newMinesRevealed,
@@ -541,7 +574,6 @@ async function handleGameMove({ res, log, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`game-move error: ${e.message}`);
-    log(`[game/move] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -556,7 +588,7 @@ async function handleGameRaceMove({ res, log, error: logError }, userId, body) {
     return res.json({ ok: false, error: 'Missing gameId, row, or col' }, 400);
   }
 
-  const { db, DB, GAMES, LOBBIES } = initAppwrite();
+  const { db, DB, GAMES, LOBBIES, GAME_BOARDS } = initAppwrite();
 
   try {
     const game = await db.getDocument(DB, GAMES, gameId);
@@ -573,7 +605,9 @@ async function handleGameRaceMove({ res, log, error: logError }, userId, body) {
       return res.json({ ok: false, error: 'You are not a player in this game' }, 403);
     }
 
-    const masterBoard = JSON.parse(game.board);
+    // Read the REAL board from private collection
+    const boardDoc = await db.getDocument(DB, GAME_BOARDS, gameId);
+    const masterBoard = JSON.parse(boardDoc.board);
     const boardRows = masterBoard.length;
     const boardCols = masterBoard[0].length;
 
@@ -646,13 +680,21 @@ async function handleGameRaceMove({ res, log, error: logError }, userId, body) {
       updateData.winnerId = userId;
     }
 
+    // Build safe board for this player
+    const safeBoard = buildSafeBoardForRace(masterBoard, revealed, finished || updateData.status === GameStatus.FINISHED);
+
+    // Store safe board in public games collection
+    updateData.board = JSON.stringify(safeBoard);
+
     await db.updateDocument(DB, GAMES, gameId, updateData);
 
     if (finished) {
       try { await db.deleteDocument(DB, LOBBIES, game.lobbyId); } catch { /* ok */ }
+      // Clean up private board when game is over
+      if (updateData.status === GameStatus.FINISHED) {
+        try { await db.deleteDocument(DB, GAME_BOARDS, gameId); } catch { /* ok */ }
+      }
     }
-
-    const safeBoard = buildSafeBoardForRace(masterBoard, revealed, finished || updateData.status === GameStatus.FINISHED);
 
     log(`[game/race-move] ✅ cell(${row},${col}) score=${currentScore} finished=${finished}`);
     return res.json({
@@ -664,7 +706,6 @@ async function handleGameRaceMove({ res, log, error: logError }, userId, body) {
     });
   } catch (e) {
     logError(`game-race-move error: ${e.message}`);
-    log(`[game/race-move] ❌ Error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -677,7 +718,7 @@ async function handleGameLeave({ res, log, error: logError }, userId, body) {
   log(`[game/leave] user=${userId} gameId=${gameId}`);
   if (!gameId) return res.json({ ok: false, error: 'Missing gameId' }, 400);
 
-  const { db, DB, GAMES, LOBBIES } = initAppwrite();
+  const { db, DB, GAMES, LOBBIES, GAME_BOARDS } = initAppwrite();
 
   try {
     const game = await db.getDocument(DB, GAMES, gameId);
@@ -703,12 +744,79 @@ async function handleGameLeave({ res, log, error: logError }, userId, body) {
 
     await db.updateDocument(DB, GAMES, gameId, { status: GameStatus.FINISHED, winnerId });
     try { await db.deleteDocument(DB, LOBBIES, game.lobbyId); } catch { /* ok */ }
+    // Clean up private board
+    try { await db.deleteDocument(DB, GAME_BOARDS, gameId); } catch { /* ok */ }
 
     log(`[game/leave] ✅ Player ${userId} forfeited game ${gameId}, winner=${winnerId}`);
     return res.json({ ok: true, winnerId });
   } catch (e) {
     logError(`game-leave error: ${e.message}`);
-    log(`[game/leave] ❌ Error: ${e.message}`);
+    return res.json({ ok: false, error: e.message }, 500);
+  }
+}
+
+// ══════════════════════════════════════
+//  SPECTATOR: JOIN
+// ══════════════════════════════════════
+async function handleSpectatorJoin({ res, log, error: logError }, userId, body) {
+  const { gameId } = body;
+  log(`[spectator/join] user=${userId} gameId=${gameId}`);
+  if (!gameId) return res.json({ ok: false, error: 'Missing gameId' }, 400);
+
+  const { db, DB, GAMES } = initAppwrite();
+
+  try {
+    const game = await db.getDocument(DB, GAMES, gameId);
+    const spectators = JSON.parse(game.spectators || '[]');
+
+    if (spectators.includes(userId)) {
+      return res.json({ ok: true, message: 'Already spectating' });
+    }
+
+    // Prevent players from being spectators in their own game
+    const gamePlayers = JSON.parse(game.players);
+    if (gamePlayers.some(p => p.id === userId)) {
+      return res.json({ ok: false, error: 'You are a player in this game' }, 400);
+    }
+
+    spectators.push(userId);
+    await db.updateDocument(DB, GAMES, gameId, {
+      spectators: JSON.stringify(spectators)
+    });
+
+    log(`[spectator/join] ✅ ${userId} is now spectating game ${gameId}`);
+    return res.json({ ok: true });
+  } catch (e) {
+    logError(`spectator-join error: ${e.message}`);
+    return res.json({ ok: false, error: e.message }, 500);
+  }
+}
+
+// ══════════════════════════════════════
+//  SPECTATOR: LEAVE
+// ══════════════════════════════════════
+async function handleSpectatorLeave({ res, log, error: logError }, userId, body) {
+  const { gameId } = body;
+  log(`[spectator/leave] user=${userId} gameId=${gameId}`);
+  if (!gameId) return res.json({ ok: false, error: 'Missing gameId' }, 400);
+
+  const { db, DB, GAMES } = initAppwrite();
+
+  try {
+    const game = await db.getDocument(DB, GAMES, gameId);
+    const spectators = JSON.parse(game.spectators || '[]');
+    const newSpectators = spectators.filter(id => id !== userId);
+
+    if (newSpectators.length !== spectators.length) {
+      await db.updateDocument(DB, GAMES, gameId, {
+        spectators: JSON.stringify(newSpectators)
+      });
+    }
+
+    log(`[spectator/leave] ✅ ${userId} stopped spectating game ${gameId}`);
+    return res.json({ ok: true });
+  } catch (e) {
+    logError(`spectator-leave error: ${e.message}`);
     return res.json({ ok: false, error: e.message }, 500);
   }
 }
@@ -720,7 +828,7 @@ const STALE_LOBBY_MS = 2 * 60 * 60 * 1000;   // 2 hours
 const STALE_GAME_MS = 4 * 60 * 60 * 1000;    // 4 hours
 
 async function handleCleanup({ res, log, error: logError }) {
-  const { db, DB, LOBBIES, GAMES } = initAppwrite();
+  const { db, DB, LOBBIES, GAMES, GAME_BOARDS } = initAppwrite();
   const now = Date.now();
   let deletedLobbies = 0, finishedGames = 0;
 
@@ -747,6 +855,8 @@ async function handleCleanup({ res, log, error: logError }) {
           await db.updateDocument(DB, GAMES, game.$id, { status: GameStatus.FINISHED, winnerId: 'timeout' });
           finishedGames++;
           try { await db.deleteDocument(DB, LOBBIES, game.lobbyId); } catch { /* ok */ }
+          // Clean up private board
+          try { await db.deleteDocument(DB, GAME_BOARDS, game.$id); } catch { /* ok */ }
         } catch { /* skip */ }
       }
     }
@@ -770,6 +880,22 @@ async function handleCleanup({ res, log, error: logError }) {
         try { await db.deleteDocument(DB, LOBBIES, lobby.$id); deletedLobbies++; } catch { /* skip */ }
       }
     }
+
+    // Clean up orphan private boards (game doesn't exist or is finished)
+    try {
+      const allBoards = await db.listDocuments(DB, GAME_BOARDS, [Query.limit(100)]);
+      for (const boardDoc of allBoards.documents) {
+        try {
+          const game = await db.getDocument(DB, GAMES, boardDoc.$id);
+          if (game.status === GameStatus.FINISHED) {
+            await db.deleteDocument(DB, GAME_BOARDS, boardDoc.$id);
+          }
+        } catch {
+          // Game doesn't exist — orphan board, delete it
+          try { await db.deleteDocument(DB, GAME_BOARDS, boardDoc.$id); } catch { /* skip */ }
+        }
+      }
+    } catch { /* skip if collection doesn't exist yet */ }
 
     log(`Cleanup: ${deletedLobbies} lobbies deleted, ${finishedGames} games force-finished`);
     return res.json({ ok: true, deletedLobbies, finishedGames });

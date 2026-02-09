@@ -1,14 +1,16 @@
 import { Client, Databases, Account, ID, Query, Models, OAuthProvider, Permission, Role } from 'appwrite';
 
-// Appwrite Configuration
-// ⚠️ ВАЖНО: Замените эти значения на свои из Appwrite Console
-const APPWRITE_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // або ваш self-hosted endpoint
-const APPWRITE_PROJECT_ID = '697e466f003aeb849026'; // Замініть на ID вашого проекту
+// Appwrite Configuration — loaded from .env (VITE_ prefix)
+const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string;
+const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID as string;
 
-// Database and Collection IDs (створіть їх в Appwrite Console)
-export const DATABASE_ID = 'minesweeper_db';
-export const LOBBIES_COLLECTION_ID = 'lobbies';
-export const GAMES_COLLECTION_ID = 'games';
+// Database and Collection IDs
+export const DATABASE_ID = import.meta.env.VITE_DATABASE_ID as string;
+export const LOBBIES_COLLECTION_ID = import.meta.env.VITE_LOBBIES_COLLECTION_ID as string;
+export const GAMES_COLLECTION_ID = import.meta.env.VITE_GAMES_COLLECTION_ID as string;
+
+// Function ID
+export const FUNCTION_ID = import.meta.env.VITE_FUNCTION_ID as string;
 
 // Initialize Appwrite Client
 const client = new Client()
