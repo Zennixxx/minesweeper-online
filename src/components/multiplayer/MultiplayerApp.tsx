@@ -10,7 +10,14 @@ import { Lobby, MultiplayerGameState, MultiplayerGameStatus, GameMode } from '..
 import { getGame, getLobby } from '../../multiplayerServiceSecure';
 import { saveGameSession, clearGameSession } from '../../lib/appwrite';
 import { useAuth } from '../../lib/AuthContext';
-import { BombIcon, PencilIcon, DoorIcon, LockIcon } from '../../icons';
+import { BombIcon, PencilIcon, DoorIcon, LockIcon, UsersIcon } from '../../icons';
+
+// Guest login form icon
+const GuestIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+  </svg>
+);
 
 // Route wrapper: loads game by ID from URL and renders the correct game component
 const GameRoute: React.FC<{ isSpectator?: boolean }> = ({ isSpectator = false }) => {
@@ -138,8 +145,11 @@ const GithubIcon = () => (
 );
 
 export const MultiplayerApp: React.FC = () => {
-  const { playerName, isLoading: isAuthLoading, isAuthenticated, user, logout, loginWithGoogle, loginWithDiscord, loginWithGithub, updatePlayerName } = useAuth();
+  const { playerName, isLoading: isAuthLoading, isAuthenticated, isGuest, user, logout, loginWithGoogle, loginWithDiscord, loginWithGithub, loginAsGuest, updatePlayerName } = useAuth();
   const [showEditName, setShowEditName] = useState(false);
+  const [guestNickname, setGuestNickname] = useState('');
+  const [guestError, setGuestError] = useState<string | null>(null);
+  const [guestLoading, setGuestLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleNameChange = useCallback((name: string) => {
@@ -168,6 +178,20 @@ export const MultiplayerApp: React.FC = () => {
     navigate('/multiplayer');
   }, [navigate]);
 
+  const handleGuestLogin = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guestNickname.trim()) return;
+    setGuestLoading(true);
+    setGuestError(null);
+    try {
+      await loginAsGuest(guestNickname);
+    } catch (err: any) {
+      setGuestError(err.message || 'Помилка входу');
+    } finally {
+      setGuestLoading(false);
+    }
+  }, [guestNickname, loginAsGuest]);
+
   if (isAuthLoading) {
     return (
       <div className="multiplayer-app">
@@ -185,6 +209,32 @@ export const MultiplayerApp: React.FC = () => {
         <div className="login-screen">
           <h1 className="game-title"><BombIcon size={28} /> Сапер Онлайн</h1>
           <p className="login-subtitle">Увійдіть, щоб грати з друзями</p>
+
+          {/* Guest login */}
+          <form className="guest-login-form" onSubmit={handleGuestLogin}>
+            <input
+              type="text"
+              value={guestNickname}
+              onChange={(e) => setGuestNickname(e.target.value)}
+              placeholder="Введіть нікнейм"
+              maxLength={20}
+              disabled={guestLoading}
+            />
+            <button
+              type="submit"
+              className="btn-guest"
+              disabled={!guestNickname.trim() || guestLoading}
+            >
+              <GuestIcon />
+              {guestLoading ? 'Вхід...' : 'Увійти як гість'}
+            </button>
+            {guestError && <div className="guest-error">{guestError}</div>}
+          </form>
+
+          <div className="login-divider">
+            <span>або увійдіть через</span>
+          </div>
+
           <div className="login-buttons">
             <button
               type="button"
@@ -233,7 +283,11 @@ export const MultiplayerApp: React.FC = () => {
                 <div className="welcome-section">
                   <p className="welcome-message">
                     Привіт, {playerName}!
-                    <span className="auth-badge" title={`Google: ${user?.email}`}><LockIcon size={14} /></span>
+                    {isGuest ? (
+                      <span className="auth-badge guest-badge" title="Гостьовий режим"><UsersIcon size={14} /></span>
+                    ) : (
+                      <span className="auth-badge" title={`${user?.email || ''}`}><LockIcon size={14} /></span>
+                    )}
                   </p>
                   <div className="welcome-actions">
                     <button

@@ -7,11 +7,13 @@ interface AuthState {
   user: Models.User<Models.Preferences> | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isGuest: boolean;
   playerName: string;
   playerId: string;
   loginWithGoogle: () => void;
   loginWithDiscord: () => void;
   loginWithGithub: () => void;
+  loginAsGuest: (nickname: string) => Promise<void>;
   logout: () => Promise<void>;
   updatePlayerName: (name: string) => void;
 }
@@ -28,13 +30,20 @@ export const useAuth = (): AuthState => {
 const syncUserData = (user: Models.User<Models.Preferences>) => {
   setPlayerId(user.$id);
 
-  // Set name from Google if user hasn't set a custom nickname yet
+  // Set name from OAuth or anonymous name if user hasn't set a custom nickname yet
   const currentName = localStorage.getItem('minesweeper_player_name');
   if (!currentName || currentName === 'Гравець') {
     if (user.name) {
       localStorage.setItem('minesweeper_player_name', user.name);
     }
   }
+};
+
+// Check if user is an anonymous (guest) session
+const checkIsGuest = (user: Models.User<Models.Preferences> | null): boolean => {
+  if (!user) return false;
+  // Anonymous users have no email and no OAuth providers
+  return !user.email && user.registration !== '';
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -92,6 +101,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     account.createOAuth2Token(OAuthProvider.Github, redirectUrl, redirectUrl);
   }, []);
 
+  const loginAsGuest = useCallback(async (nickname: string) => {
+    const trimmed = nickname.trim().substring(0, 20) || 'Гість';
+    try {
+      await account.createAnonymousSession();
+      // Set the name on the anonymous account so the server can read it
+      await account.updateName(trimmed);
+      const currentUser = await account.get();
+      setUser(currentUser);
+      syncUserData(currentUser);
+      savePlayerName(trimmed);
+      setPlayerNameState(trimmed);
+    } catch (e: any) {
+      console.error('Failed to create guest session:', e);
+      throw new Error(e.message || 'Не вдалося увійти як гість');
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await account.deleteSession('current');
@@ -104,23 +130,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPlayerNameState('Гравець');
   }, []);
 
-  const updatePlayerName = useCallback((name: string) => {
+  const updatePlayerName = useCallback(async (name: string) => {
     savePlayerName(name);
     setPlayerNameState(name);
+    // Also update the name on the Appwrite account so the server reads it
+    try {
+      await account.updateName(name);
+    } catch {
+      // ignore — guest sessions may fail here in edge cases
+    }
   }, []);
 
   const playerId = user?.$id || '';
+  const isGuest = checkIsGuest(user);
 
   return (
     <AuthContext.Provider value={{
       user,
       isLoading,
       isAuthenticated: !!user,
+      isGuest,
       playerName,
       playerId,
       loginWithGoogle,
       loginWithDiscord,
       loginWithGithub,
+      loginAsGuest,
       logout,
       updatePlayerName,
     }}>
