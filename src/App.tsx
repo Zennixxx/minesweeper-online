@@ -1,11 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Minesweeper } from './components/Minesweeper';
 import { MultiplayerApp } from './components/multiplayer';
 import { getGameSession } from './lib/appwrite';
-import { BombIcon, GamepadIcon, UsersIcon } from './icons';
+import { BombIcon, GamepadIcon, UsersIcon, SwordsIcon } from './icons';
 import './index.css';
 import './multiplayer.css';
+
+const DiepGame = lazy(() => import('./components/diep/DiepGame'));
 
 // Redirects player back to active game if they land on the main menu
 function SessionRedirect() {
@@ -53,6 +55,15 @@ function MainMenu() {
           <span className="menu-btn-text">Онлайн на двох</span>
           <span className="menu-btn-desc">Змагайтесь з друзями!</span>
         </button>
+
+        <button
+          className="menu-btn menu-btn-arena"
+          onClick={() => navigate('/arena')}
+        >
+          <span className="menu-btn-icon"><SwordsIcon size={24} /></span>
+          <span className="menu-btn-text">Онлайн арена</span>
+          <span className="menu-btn-desc">Бій у стилі diep.io!</span>
+        </button>
       </div>
     </div>
   );
@@ -80,6 +91,11 @@ function App() {
             </button>
             <Minesweeper />
           </>
+        } />
+        <Route path="/arena" element={
+          <Suspense fallback={<div style={{color:'#fff',textAlign:'center',marginTop:'40vh'}}>Завантаження...</div>}>
+            <DiepGame />
+          </Suspense>
         } />
         <Route path="/multiplayer/*" element={
           <>

@@ -150,6 +150,18 @@ body {
   box-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
 }
 
+.menu-btn-arena {
+  background: rgba(0, 178, 225, 0.08);
+  border-color: rgba(0, 178, 225, 0.2);
+  color: white;
+}
+
+.menu-btn-arena:hover {
+  background: rgba(0, 178, 225, 0.18);
+  border-color: rgba(0, 178, 225, 0.4);
+  box-shadow: 0 0 40px rgba(0, 178, 225, 0.15);
+}
+
 .menu-btn:hover {
   transform: translateY(-4px);
 }

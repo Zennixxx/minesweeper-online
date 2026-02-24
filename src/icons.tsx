@@ -286,6 +286,21 @@ export const DesertIcon: React.FC<IconProps> = ({ size = defaultSize, className 
   </svg>
 );
 
+// ===== Arena / Diep icon =====
+
+export const SwordsIcon: React.FC<IconProps> = ({ size = defaultSize, className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M14.5 2L18 5.5 9.5 14 6 10.5 14.5 2z" />
+    <path d="M18 5.5L22 2" />
+    <path d="M22 6l-4-4" />
+    <path d="M9.5 2L6 5.5 14.5 14 18 10.5 9.5 2z" />
+    <path d="M6 5.5L2 2" />
+    <path d="M2 6l4-4" />
+    <path d="M3 21l5-5" />
+    <path d="M21 21l-5-5" />
+  </svg>
+);
+
 // ===== Difficulty dot icons =====
 
 export const DifficultyDot: React.FC<IconProps & { color: string }> = ({ size = 12, color, className }) => (

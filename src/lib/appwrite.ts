@@ -12,6 +12,10 @@ export const GAMES_COLLECTION_ID = import.meta.env.VITE_GAMES_COLLECTION_ID as s
 // Function ID
 export const FUNCTION_ID = import.meta.env.VITE_FUNCTION_ID as string;
 
+// Arena collections
+export const ARENA_ROOMS_COLLECTION_ID = import.meta.env.VITE_ARENA_ROOMS_COLLECTION_ID as string;
+export const ARENA_PLAYERS_COLLECTION_ID = import.meta.env.VITE_ARENA_PLAYERS_COLLECTION_ID as string;
+
 // Initialize Appwrite Client
 const client = new Client()
   .setEndpoint(APPWRITE_ENDPOINT)

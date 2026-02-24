@@ -121,6 +121,15 @@ export default async (context) => {
     case '/game/spectator-leave':
       result = await handleSpectatorLeave(context, userId, body);
       break;
+    case '/arena/join':
+      result = await handleArenaJoin(context, userId, body);
+      break;
+    case '/arena/leave':
+      result = await handleArenaLeave(context, userId, body);
+      break;
+    case '/arena/death':
+      result = await handleArenaDeath(context, userId, body);
+      break;
     default:
       log(`[ROUTE] Unknown route: ${path}`);
       result = res.json({ ok: false, error: `Unknown route: ${path}` }, 404);
@@ -1043,4 +1052,199 @@ function buildSafeBoardForRace(masterBoard, revealed, gameOver) {
     if (gameOver || revealed.has(`${r}-${c}`)) return cell;
     return { id: cell.id, row: cell.row, col: cell.col, isMine: false, neighborMines: 0, state: 'hidden' };
   }));
+}
+
+// ══════════════════════════════════════
+//  ARENA: JOIN — find/create room, create player document
+// ══════════════════════════════════════
+const ARENA_COLORS = [
+  '#f04f54', '#bf7ff0', '#f0a04f', '#4ff07f', '#f0d94f',
+  '#ff6b9d', '#4fc4f0', '#f07f4f', '#00b2e1', '#9d4ff0',
+  '#f04f8b', '#c8f04f',
+];
+const ARENA_SIZE_CONST = 4000;
+
+async function handleArenaJoin({ res, log, error: logError }, userId, body) {
+  const { name } = body;
+  log(`[arena/join] user=${userId} name="${name}"`);
+
+  const { db, users, DB } = initAppwrite();
+  const ARENA_ROOMS = process.env.ARENA_ROOMS_COLLECTION_ID || 'arena_rooms';
+  const ARENA_PLAYERS = process.env.ARENA_PLAYERS_COLLECTION_ID || 'arena_players';
+
+  try {
+    // Check if player is already in a room (reconnect)
+    const existing = await db.listDocuments(DB, ARENA_PLAYERS, [
+      Query.equal('playerId', userId),
+      Query.limit(1)
+    ]);
+
+    if (existing.documents.length > 0) {
+      const doc = existing.documents[0];
+      log(`[arena/join] ✅ Reconnected to room ${doc.roomId}`);
+      return res.json({
+        ok: true,
+        roomId: doc.roomId,
+        playerDocId: doc.$id,
+        x: doc.x,
+        y: doc.y,
+        color: doc.color,
+        reconnected: true
+      });
+    }
+
+    // Get verified player name
+    let playerName = name || 'Гравець';
+    try {
+      const user = await users.get(userId);
+      if (user.name) playerName = user.name;
+    } catch { /* fallback */ }
+
+    // Find a room with space or create new
+    let roomId;
+    const rooms = await db.listDocuments(DB, ARENA_ROOMS, [
+      Query.lessThan('playerCount', 20),
+      Query.orderDesc('$createdAt'),
+      Query.limit(1)
+    ]);
+
+    if (rooms.documents.length > 0) {
+      roomId = rooms.documents[0].$id;
+      await db.updateDocument(DB, ARENA_ROOMS, roomId, {
+        playerCount: rooms.documents[0].playerCount + 1
+      });
+    } else {
+      const room = await db.createDocument(DB, ARENA_ROOMS, ID.unique(), {
+        playerCount: 1,
+        maxPlayers: 20,
+      }, [Permission.read(Role.users())]);
+      roomId = room.$id;
+    }
+
+    // Random spawn position
+    const x = 200 + Math.random() * (ARENA_SIZE_CONST - 400);
+    const y = 200 + Math.random() * (ARENA_SIZE_CONST - 400);
+    const color = ARENA_COLORS[Math.floor(Math.random() * ARENA_COLORS.length)];
+
+    const defaultStats = JSON.stringify({
+      healthRegen: 0, maxHealth: 0, bodyDamage: 0,
+      bulletSpeed: 0, bulletPenetration: 0, bulletDamage: 0,
+      reload: 0, moveSpeed: 0
+    });
+
+    // Create player document — only this user can update it
+    const playerDoc = await db.createDocument(DB, ARENA_PLAYERS, ID.unique(), {
+      playerId: userId,
+      roomId: roomId,
+      name: playerName,
+      x, y,
+      angle: 0,
+      hp: 50,
+      maxHp: 50,
+      score: 0,
+      level: 1,
+      stats: defaultStats,
+      alive: true,
+      color,
+      isShooting: false,
+      lastUpdate: new Date().toISOString()
+    }, [
+      Permission.read(Role.users()),
+      Permission.update(Role.user(userId)),
+    ]);
+
+    log(`[arena/join] ✅ ${playerName} joined room ${roomId} (doc=${playerDoc.$id})`);
+    return res.json({
+      ok: true,
+      roomId,
+      playerDocId: playerDoc.$id,
+      x, y, color
+    });
+  } catch (e) {
+    logError(`arena-join error: ${e.message}`);
+    return res.json({ ok: false, error: e.message }, 500);
+  }
+}
+
+// ══════════════════════════════════════
+//  ARENA: LEAVE — delete player document, update room
+// ══════════════════════════════════════
+async function handleArenaLeave({ res, log, error: logError }, userId, body) {
+  const { docId, roomId } = body;
+  log(`[arena/leave] user=${userId} docId=${docId} roomId=${roomId}`);
+
+  const { db, DB } = initAppwrite();
+  const ARENA_ROOMS = process.env.ARENA_ROOMS_COLLECTION_ID || 'arena_rooms';
+  const ARENA_PLAYERS = process.env.ARENA_PLAYERS_COLLECTION_ID || 'arena_players';
+
+  try {
+    // Delete player document
+    if (docId) {
+      try {
+        const doc = await db.getDocument(DB, ARENA_PLAYERS, docId);
+        if (doc.playerId === userId) {
+          await db.deleteDocument(DB, ARENA_PLAYERS, docId);
+        }
+      } catch { /* already deleted */ }
+    } else {
+      // Fallback: delete all documents by this player
+      const docs = await db.listDocuments(DB, ARENA_PLAYERS, [
+        Query.equal('playerId', userId),
+        Query.limit(5)
+      ]);
+      for (const doc of docs.documents) {
+        try { await db.deleteDocument(DB, ARENA_PLAYERS, doc.$id); } catch { /* ok */ }
+      }
+    }
+
+    // Update room player count
+    if (roomId) {
+      try {
+        const room = await db.getDocument(DB, ARENA_ROOMS, roomId);
+        const newCount = Math.max(0, (room.playerCount || 1) - 1);
+        if (newCount <= 0) {
+          await db.deleteDocument(DB, ARENA_ROOMS, roomId);
+        } else {
+          await db.updateDocument(DB, ARENA_ROOMS, roomId, { playerCount: newCount });
+        }
+      } catch { /* room already deleted */ }
+    }
+
+    log(`[arena/leave] ✅ Player ${userId} left arena`);
+    return res.json({ ok: true });
+  } catch (e) {
+    logError(`arena-leave error: ${e.message}`);
+    return res.json({ ok: false, error: e.message }, 500);
+  }
+}
+
+// ══════════════════════════════════════
+//  ARENA: DEATH — report who killed you, reward them
+// ══════════════════════════════════════
+async function handleArenaDeath({ res, log, error: logError }, userId, body) {
+  const { killerDocId, victimScore } = body;
+  log(`[arena/death] victim=${userId} killerDoc=${killerDocId} score=${victimScore}`);
+
+  const { db, DB } = initAppwrite();
+  const ARENA_PLAYERS = process.env.ARENA_PLAYERS_COLLECTION_ID || 'arena_players';
+
+  try {
+    if (!killerDocId) {
+      return res.json({ ok: true, message: 'No killer to reward' });
+    }
+
+    // Reward the killer
+    const killerDoc = await db.getDocument(DB, ARENA_PLAYERS, killerDocId);
+    const reward = Math.floor((victimScore || 0) * 0.3 + 50);
+
+    await db.updateDocument(DB, ARENA_PLAYERS, killerDocId, {
+      score: (killerDoc.score || 0) + reward
+    });
+
+    log(`[arena/death] ✅ Killer ${killerDoc.name} got +${reward} score`);
+    return res.json({ ok: true, reward });
+  } catch (e) {
+    logError(`arena-death error: ${e.message}`);
+    return res.json({ ok: false, error: e.message }, 500);
+  }
 }
