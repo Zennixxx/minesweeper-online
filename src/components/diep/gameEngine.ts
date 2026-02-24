@@ -386,22 +386,43 @@ export function updateGame(state: GameState): void {
     }
   }
 
-  // ===== Network player interpolation & shooting =====
+  // ===== Network player Dead Reckoning & shooting =====
   for (const np of state.networkPlayers) {
     if (!np.alive) continue;
-    // Interpolate position smoothly
+
+    // Dead Reckoning: extrapolate position using predicted velocity (units/sec ÷ 60fps)
+    np.x += (np.predictVx || 0) / 60;
+    np.y += (np.predictVy || 0) / 60;
+
+    // Soft correction toward authoritative target (prevents unbounded drift)
     if (np.targetX !== undefined) {
-      np.x += (np.targetX - np.x) * 0.12;
-      np.y += (np.targetY! - np.y) * 0.12;
+      const errX = np.targetX - np.x;
+      const errY = (np.targetY ?? np.y) - np.y;
+      const errDist = Math.sqrt(errX * errX + errY * errY);
+      if (errDist > 250) {
+        // Big error (teleport / large lag spike) — snap immediately
+        np.x = np.targetX;
+        np.y = np.targetY!;
+      } else {
+        // Gentle 5% blend per frame — reaches target in ~1 sec
+        np.x += errX * 0.05;
+        np.y += errY * 0.05;
+      }
     }
-    // Interpolate angle
+
+    // Clamp to arena bounds
+    np.x = clamp(np.x, np.radius, ARENA_SIZE - np.radius);
+    np.y = clamp(np.y, np.radius, ARENA_SIZE - np.radius);
+
+    // Smooth barrel angle interpolation
     if (np.targetAngle !== undefined) {
       let diff = np.targetAngle - np.angle;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      np.angle += diff * 0.15;
+      np.angle += diff * 0.2;
     }
-    // Network player shooting
+
+    // Network player shooting (visual bullets)
     if (np.reloadTimer > 0) np.reloadTimer--;
     if (np.isShooting && np.reloadTimer <= 0) {
       np.reloadTimer = getReloadTime(np.stats);
@@ -412,7 +433,11 @@ export function updateGame(state: GameState): void {
   }
 
   // ===== Update all tanks (player + bots + network) =====
-  const allTanks = [player, ...bots, ...state.networkPlayers];
+  // Bots are fully disabled when real network players are in the room
+  const botsActive = state.networkPlayers.length === 0;
+  const allTanks = botsActive
+    ? [player, ...bots, ...state.networkPlayers]
+    : [player, ...state.networkPlayers];
 
   for (const tank of allTanks) {
     // Network players are handled above (interpolation)
@@ -448,12 +473,12 @@ export function updateGame(state: GameState): void {
     if (tank.damageFlash > 0) tank.damageFlash--;
   }
 
-  // ===== Bot AI =====
-  for (const bot of bots) {
-    updateBotAI(bot, state);
-
-    // Bot reload + firing is handled in AI
-    if (bot.alive && bot.reloadTimer > 0) bot.reloadTimer--;
+  // ===== Bot AI (disabled when real players are in the room) =====
+  if (botsActive) {
+    for (const bot of bots) {
+      updateBotAI(bot, state);
+      if (bot.alive && bot.reloadTimer > 0) bot.reloadTimer--;
+    }
   }
 
   // ===== Update bullets =====
@@ -768,13 +793,15 @@ function drawMinimap(
     ctx.fill();
   }
 
-  // Bot dots
-  for (const bot of state.bots) {
-    if (!bot.alive) continue;
-    ctx.fillStyle = bot.color;
-    ctx.beginPath();
-    ctx.arc(mmX + bot.x * scale, mmY + bot.y * scale, 2, 0, Math.PI * 2);
-    ctx.fill();
+  // Bot dots (only in single-player mode)
+  if (state.networkPlayers.length === 0) {
+    for (const bot of state.bots) {
+      if (!bot.alive) continue;
+      ctx.fillStyle = bot.color;
+      ctx.beginPath();
+      ctx.arc(mmX + bot.x * scale, mmY + bot.y * scale, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // Network player dots (slightly larger)
@@ -788,7 +815,9 @@ function drawMinimap(
 }
 
 function drawLeaderboard(ctx: CanvasRenderingContext2D, state: GameState, canvasW: number): void {
-  const allTanks = [state.player, ...state.bots, ...state.networkPlayers];
+  const allTanks = state.networkPlayers.length > 0
+    ? [state.player, ...state.networkPlayers]
+    : [state.player, ...state.bots];
   const sorted = allTanks
     .filter(t => t.alive || t.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -928,9 +957,12 @@ export function renderGame(
     drawBullet(ctx, b, cx, cy);
   }
 
-  // Tanks
-  const allTanks = [state.player, ...state.bots, ...state.networkPlayers];
-  for (const tank of allTanks) {
+  // Tanks (exclude bots in multiplayer mode)
+  const renderBots = state.networkPlayers.length === 0;
+  const renderTanks = renderBots
+    ? [state.player, ...state.bots, ...state.networkPlayers]
+    : [state.player, ...state.networkPlayers];
+  for (const tank of renderTanks) {
     if (!tank.alive) continue;
     if (Math.abs(tank.x - state.camera.x) > halfW + 100 ||
       Math.abs(tank.y - state.camera.y) > halfH + 100) continue;
@@ -1032,6 +1064,9 @@ export function addNetworkPlayer(state: GameState, p: ArenaPlayerState): void {
     targetAngle: p.angle,
     docId: p.docId,
     networkPlayerId: p.playerId,
+    predictVx: 0,
+    predictVy: 0,
+    lastNetworkUpdate: performance.now(),
   };
 
   state.networkPlayers.push(tank);
@@ -1044,7 +1079,26 @@ export function updateNetworkPlayerState(state: GameState, p: ArenaPlayerState):
     return;
   }
 
-  // Set interpolation targets (don't snap directly)
+  const now = performance.now();
+  const dt = (tank.lastNetworkUpdate && tank.lastNetworkUpdate > 0)
+    ? (now - tank.lastNetworkUpdate) / 1000  // seconds since last update
+    : 0;
+
+  // Compute Dead Reckoning velocity from position delta
+  if (dt > 0.05 && dt < 3.0 && tank.targetX !== undefined) {
+    const dx = p.x - tank.targetX;
+    const dy = p.y - (tank.targetY ?? tank.y);
+    // Blend: 60% new measurement, 40% previous (stabilize noisy GPS-like updates)
+    tank.predictVx = (dx / dt) * 0.6 + (tank.predictVx || 0) * 0.4;
+    tank.predictVy = (dy / dt) * 0.6 + (tank.predictVy || 0) * 0.4;
+  } else if (dt >= 3.0) {
+    // Stale — player probably stopped moving
+    tank.predictVx = 0;
+    tank.predictVy = 0;
+  }
+  tank.lastNetworkUpdate = now;
+
+  // Set authoritative targets
   tank.targetX = p.x;
   tank.targetY = p.y;
   tank.targetAngle = p.angle;

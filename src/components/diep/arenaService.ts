@@ -79,7 +79,14 @@ let unsubscriber: (() => void) | null = null;
 let lastSyncTime = 0;
 let syncBackoffUntil = 0;
 let syncBackoffMs = 1000;
-const SYNC_INTERVAL = 1000; // ms between updates to Appwrite (~1/sec, within rate limits)
+// Adaptive sync: faster when moving, slower when idle
+const SYNC_INTERVAL_MOVING = 500;  // ms (~2/sec) when player moves
+const SYNC_INTERVAL_IDLE   = 2500; // ms when player is still
+// Tracks last successfully sent values to detect meaningful change
+let lastSentX = 0;
+let lastSentY = 0;
+let lastSentAngle = 0;
+let lastSentAlive = true;
 
 // ===== Default stats =====
 
@@ -126,6 +133,10 @@ export async function joinArena(name: string): Promise<ArenaJoinResult> {
   lastSyncTime = 0;
   syncBackoffUntil = 0;
   syncBackoffMs = 1000;
+  lastSentX = 0;
+  lastSentY = 0;
+  lastSentAngle = 0;
+  lastSentAlive = true;
   return {
     roomId: response.roomId,
     docId: response.playerDocId,
@@ -173,7 +184,16 @@ export function syncPlayerState(data: {
   isShooting: boolean;
 }): void {
   const now = Date.now();
-  if (now < syncBackoffUntil || now - lastSyncTime < SYNC_INTERVAL || !currentDocId) return;
+  if (now < syncBackoffUntil || !currentDocId) return;
+
+  // Adaptive interval: send faster when actively moving or state changed significantly
+  const moved = Math.abs(data.x - lastSentX) > 4 ||
+                Math.abs(data.y - lastSentY) > 4 ||
+                Math.abs(data.angle - lastSentAngle) > 0.08 ||
+                data.alive !== lastSentAlive;
+  const interval = moved ? SYNC_INTERVAL_MOVING : SYNC_INTERVAL_IDLE;
+
+  if (now - lastSyncTime < interval) return;
   lastSyncTime = now;
 
   databases.updateDocument(
@@ -194,7 +214,11 @@ export function syncPlayerState(data: {
       lastUpdate: new Date().toISOString(),
     }
   ).then(() => {
-    // Success — reset backoff
+    // Success — update last sent values and reset backoff
+    lastSentX = data.x;
+    lastSentY = data.y;
+    lastSentAngle = data.angle;
+    lastSentAlive = data.alive;
     syncBackoffMs = 1000;
   }).catch((e: any) => {
     const msg: string = e?.message || '';

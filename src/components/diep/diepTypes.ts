@@ -70,6 +70,10 @@ export interface Tank {
   docId?: string;
   networkPlayerId?: string;
   lastHitBy?: string;
+  // Dead reckoning (predict movement between Realtime snapshots)
+  predictVx?: number;
+  predictVy?: number;
+  lastNetworkUpdate?: number; // performance.now() of last Realtime snapshot
 }
 
 export interface TankStats {
