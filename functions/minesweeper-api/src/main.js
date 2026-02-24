@@ -1074,21 +1074,28 @@ async function handleArenaJoin({ res, log, error: logError }, userId, body) {
 
   try {
     // Check if player is already in a room (reconnect)
-    const existing = await db.listDocuments(DB, ARENA_PLAYERS, [
-      Query.equal('playerId', userId),
-      Query.limit(1)
-    ]);
+    let existingDoc = null;
+    try {
+      const existing = await db.listDocuments(DB, ARENA_PLAYERS, [
+        Query.equal('playerId', userId),
+        Query.limit(1)
+      ]);
+      if (existing.documents.length > 0) {
+        existingDoc = existing.documents[0];
+      }
+    } catch (queryErr) {
+      log(`[arena/join] playerId query failed (${queryErr.message}) — skipping reconnect check`);
+    }
 
-    if (existing.documents.length > 0) {
-      const doc = existing.documents[0];
-      log(`[arena/join] ✅ Reconnected to room ${doc.roomId}`);
+    if (existingDoc) {
+      log(`[arena/join] ✅ Reconnected to room ${existingDoc.roomId}`);
       return res.json({
         ok: true,
-        roomId: doc.roomId,
-        playerDocId: doc.$id,
-        x: doc.x,
-        y: doc.y,
-        color: doc.color,
+        roomId: existingDoc.roomId,
+        playerDocId: existingDoc.$id,
+        x: existingDoc.x,
+        y: existingDoc.y,
+        color: existingDoc.color,
         reconnected: true
       });
     }
@@ -1102,18 +1109,28 @@ async function handleArenaJoin({ res, log, error: logError }, userId, body) {
 
     // Find a room with space or create new
     let roomId;
-    const rooms = await db.listDocuments(DB, ARENA_ROOMS, [
-      Query.lessThan('playerCount', 20),
-      Query.orderDesc('$createdAt'),
-      Query.limit(1)
-    ]);
+    try {
+      const rooms = await db.listDocuments(DB, ARENA_ROOMS, [
+        Query.lessThan('playerCount', 20),
+        Query.orderDesc('$createdAt'),
+        Query.limit(1)
+      ]);
 
-    if (rooms.documents.length > 0) {
-      roomId = rooms.documents[0].$id;
-      await db.updateDocument(DB, ARENA_ROOMS, roomId, {
-        playerCount: rooms.documents[0].playerCount + 1
-      });
-    } else {
+      if (rooms.documents.length > 0) {
+        roomId = rooms.documents[0].$id;
+        await db.updateDocument(DB, ARENA_ROOMS, roomId, {
+          playerCount: rooms.documents[0].playerCount + 1
+        });
+      } else {
+        const room = await db.createDocument(DB, ARENA_ROOMS, ID.unique(), {
+          playerCount: 1,
+          maxPlayers: 20,
+        }, [Permission.read(Role.users())]);
+        roomId = room.$id;
+      }
+    } catch (roomErr) {
+      // Fallback: create a fresh room if query fails (e.g. missing index)
+      log(`[arena/join] Room query failed (${roomErr.message}), creating new room`);
       const room = await db.createDocument(DB, ARENA_ROOMS, ID.unique(), {
         playerCount: 1,
         maxPlayers: 20,

@@ -77,7 +77,9 @@ let currentRoomId: string | null = null;
 let currentDocId: string | null = null;
 let unsubscriber: (() => void) | null = null;
 let lastSyncTime = 0;
-const SYNC_INTERVAL = 150; // ms between updates to Appwrite
+let syncBackoffUntil = 0;
+let syncBackoffMs = 1000;
+const SYNC_INTERVAL = 1000; // ms between updates to Appwrite (~1/sec, within rate limits)
 
 // ===== Default stats =====
 
@@ -122,6 +124,8 @@ export async function joinArena(name: string): Promise<ArenaJoinResult> {
   currentRoomId = response.roomId;
   currentDocId = response.playerDocId;
   lastSyncTime = 0;
+  syncBackoffUntil = 0;
+  syncBackoffMs = 1000;
   return {
     roomId: response.roomId,
     docId: response.playerDocId,
@@ -169,7 +173,7 @@ export function syncPlayerState(data: {
   isShooting: boolean;
 }): void {
   const now = Date.now();
-  if (now - lastSyncTime < SYNC_INTERVAL || !currentDocId) return;
+  if (now < syncBackoffUntil || now - lastSyncTime < SYNC_INTERVAL || !currentDocId) return;
   lastSyncTime = now;
 
   databases.updateDocument(
@@ -189,9 +193,19 @@ export function syncPlayerState(data: {
       isShooting: data.isShooting,
       lastUpdate: new Date().toISOString(),
     }
-  ).catch((e) => {
-    // Silent fail — next sync will retry
-    console.warn('Arena sync error:', e.message);
+  ).then(() => {
+    // Success — reset backoff
+    syncBackoffMs = 1000;
+  }).catch((e: any) => {
+    const msg: string = e?.message || '';
+    if (msg.includes('Rate limit') || msg.includes('429')) {
+      // Exponential backoff: 2s → 4s → 8s → max 30s
+      syncBackoffMs = Math.min(syncBackoffMs * 2, 30000);
+      syncBackoffUntil = Date.now() + syncBackoffMs;
+      console.warn(`Arena sync rate limited — backing off ${syncBackoffMs}ms`);
+    } else {
+      console.warn('Arena sync error:', msg);
+    }
   });
 }
 
